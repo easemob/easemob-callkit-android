@@ -17,6 +17,7 @@ import androidx.lifecycle.viewModelScope
 import com.hyphenate.callkit.CallKitClient.rtcManager
 import com.hyphenate.callkit.base.BaseViewModel
 import com.hyphenate.callkit.utils.ChatLog
+import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
  * \~chinese
@@ -36,7 +37,21 @@ class SingleCallViewModel : BaseViewModel() {
     private val _callType = CallKitClient.callType
     val callType: StateFlow<CallType> = _callType.asStateFlow()
 
-    //本地麦克风是否静音    
+    private val _screenCleanState = MutableStateFlow(false)
+    val screenCleanState: StateFlow<Boolean> = _screenCleanState.asStateFlow()
+
+    //单聊对方麦克风是否静音
+    val remoteMicMute: StateFlow<VideoLayoutInfo> = rtcManager.remoteMicMute
+        .combine(rtcManager.isLocalShowInBigView){remoteMicMute,isLocalShowInBigView->
+            VideoLayoutInfo()
+        }
+        .filter { callType.value == CallType.SINGLE_VIDEO_CALL && callState.value == CallState.CALL_ANSWERED }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(),
+            initialValue = VideoLayoutInfo()
+        )
+    //本地麦克风是否静音
     val localMicMute: StateFlow<Boolean> = rtcManager.localMicMute
 
     //远端摄像头是否关闭
@@ -48,7 +63,7 @@ class SingleCallViewModel : BaseViewModel() {
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(),
-        initialValue = VideoLayoutInfo(remoteMute = false)
+        initialValue = VideoLayoutInfo(remoteVideoMute = false)
     )
 
     //本地摄像头是否关闭
@@ -204,6 +219,10 @@ class SingleCallViewModel : BaseViewModel() {
     fun isFloatWindowShowing(): Boolean {
         return floatWindow.isFloatWindowShowing()
     }
+
+    fun setScreenCleanState(isClean: Boolean) {
+        _screenCleanState.value = isClean
+    }
     /**
      * UI状态流，包含所有UI需要的状态信息
      */
@@ -234,6 +253,7 @@ class SingleCallViewModel : BaseViewModel() {
         val localUid: Int = rtcManager.localUid.value,
         val remoteUid: Int = rtcManager.remoteUid.value,
         val localMute: Boolean = rtcManager.localVideoMute.value,
-        val remoteMute: Boolean = rtcManager.remoteVideoMute.value
+        val remoteVideoMute: Boolean = rtcManager.remoteVideoMute.value,
+        val remoteMicMute: Boolean = rtcManager.remoteMicMute.value
     )
 }

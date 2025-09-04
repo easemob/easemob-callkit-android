@@ -83,6 +83,17 @@ class CallKitCache {
         }
         return userInfoMap[userId]
     }
+    /**
+     * \~chinese
+     * 根据用户ID从缓存中获取用户信息
+     *
+     * \~english
+     * Get user information by user id from cache
+     */
+    fun getUser(uid: Int): CallKitUserInfo? {
+        val map = userInfoMap.filter { it.value.uid == uid }
+        return map.values.firstOrNull()
+    }
 
     /**
      * \~chinese
@@ -314,14 +325,15 @@ class CallKitCache {
      * Reset data
      */
     fun resetData(){
-        userInfoMap.values.forEach {
-            it.connected=false
-            it.isVideoEnabled=false
-            it.isMicEnabled=true
-            it.isSpeaking=false
-            it.networkQuality= NetworkQuality.UNKNOWN
-            it.uid=-1
-        }
+//        userInfoMap.values.forEach {
+//            it.connected=false
+//            it.isVideoEnabled=false
+//            it.isMicEnabled=true
+//            it.isSpeaking=false
+//            it.networkQuality= NetworkQuality.UNKNOWN
+//            it.uid=-1
+//        }
+        userInfoMap.clear()
     }
 
     /**

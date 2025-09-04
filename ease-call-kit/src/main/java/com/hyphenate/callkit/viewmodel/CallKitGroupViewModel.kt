@@ -2,6 +2,7 @@ package com.hyphenate.callkit.viewmodel
 
 import androidx.lifecycle.viewModelScope
 import com.hyphenate.callkit.base.BaseViewModel
+import com.hyphenate.callkit.bean.CallKitUserInfo
 import com.hyphenate.callkit.interfaces.IGroupRequest
 import com.hyphenate.callkit.repo.ChatCallKitGroupRepository
 import com.hyphenate.callkit.utils.ChatClient
@@ -34,7 +35,8 @@ open class CallKitGroupViewModel(
 
     override suspend fun fetchGroupMemberFromService(groupId: String) =
         flow {
-            emit(repository.fetGroupMemberFromServer(groupId))
+            val result = repository.fetGroupMemberFromServer(groupId, null, true)
+            emit(result.first)
         }
             .flowOn(Dispatchers.IO)
             .stateIn(
@@ -42,6 +44,15 @@ open class CallKitGroupViewModel(
                 SharingStarted.WhileSubscribed(stopTimeoutMillis),
                 mutableListOf()
             )
+
+    override suspend fun fetchGroupMemberFromService(
+        groupId: String,
+        cursor: String?,
+        isFirstPage: Boolean
+    ) = flow {
+            val result = repository.fetGroupMemberFromServer(groupId, cursor, isFirstPage)
+            emit(result)
+        }.flowOn(Dispatchers.IO)
 
 
     override suspend fun loadLocalMember(groupId: String) = flow {

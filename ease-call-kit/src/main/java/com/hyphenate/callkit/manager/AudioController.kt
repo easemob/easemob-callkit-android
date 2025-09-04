@@ -29,8 +29,7 @@ class AudioController {
         DING    // 结束警告铃声 ding
     }
 
-    private  val TAG = "CallKitAudioController"
-
+    private  val TAG = "CallKit AudioController"
     private var ringtone: Ringtone? = null
     private var mediaPlayer: MediaPlayer? = null
     private lateinit var mContext: Context
@@ -169,15 +168,30 @@ class AudioController {
      */
     @Synchronized
     internal fun stopPlayRing() {
-        ChatLog.d(TAG, "stopPlayRing")
-        mediaPlayer?.let { player ->
-            if (player.isPlaying) {
-                player.stop()
+        try {
+            ChatLog.d(TAG, "stopPlayRing")
+            mediaPlayer?.let { player ->
+                if (player.isPlaying) {
+                    player.stop()
+                }
             }
+            ringtone?.stop()
+        } catch (e:Exception){
+            ChatLog.e(TAG, "stopPlayRing error: ${e.message}")
         }
-        ringtone?.stop()
+
     }
 
+    private fun releaseMediaPlayer() {
+        try {
+            ChatLog.d(TAG, "releaseMediaPlayer")
+            stopPlayRing()
+            mediaPlayer?.release()
+            mediaPlayer = null
+        } catch (e:Exception){
+            ChatLog.e(TAG, "releaseMediaPlayer error: ${e.message}")
+        }
+    }
     /**
      * 释放资源
      */
@@ -187,12 +201,5 @@ class AudioController {
         if (!isPlayDing) {
             releaseMediaPlayer()
         }
-    }
-    
-    private fun releaseMediaPlayer() {
-        ChatLog.d(TAG, "releaseMediaPlayer")
-        stopPlayRing()
-        mediaPlayer?.release()
-        mediaPlayer = null
     }
 }

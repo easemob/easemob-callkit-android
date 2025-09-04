@@ -35,7 +35,7 @@ data class CallKitUserInfo(
     internal var isVideoEnabled: Boolean = true,
     internal var isMicEnabled: Boolean = true,
     internal var isSpeaking: Boolean = false,
-    internal var networkQuality: NetworkQuality = NetworkQuality.UNKNOWN,
+    internal var networkQuality: NetworkQuality = NetworkQuality.GOOD,
     internal var connected: Boolean = false
 ) {
     fun getName(): String {

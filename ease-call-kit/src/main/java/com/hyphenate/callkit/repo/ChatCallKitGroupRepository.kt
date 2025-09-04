@@ -17,7 +17,7 @@ class ChatCallKitGroupRepository(
 
     companion object {
         private const val TAG = "GroupRep"
-        private const val LIMIT = 50
+        private const val LIMIT = 20
     }
 
     suspend fun loadLocalMember(groupId: String): MutableList<CallKitUserInfo> =
@@ -48,33 +48,33 @@ class ChatCallKitGroupRepository(
 
     @Throws(Exception::class)
     suspend fun fetGroupMemberFromServer(
-        groupId: String
-    ): MutableList<CallKitUserInfo> = withContext(Dispatchers.IO) {
+        groupId: String,
+        cursor: String? = null,
+        isFirstPage: Boolean = false
+    ): Pair<MutableList<CallKitUserInfo>, String?> = withContext(Dispatchers.IO) {
         try {
             val groupMemberList = mutableListOf<CallKitUserInfo>()
-            var cursor: String? = null
-            do {
-                val result = groupManager.fetchChatGroupMembers(groupId, cursor, LIMIT)
-                val data = CallKitClient.getCache().getUserInfosByIds(result.data)
-                cursor = result.cursor
-                groupMemberList.addAll(data)
-            } while (!cursor.isNullOrEmpty() && groupMemberList.size <= Max)
-            //添加管理员和成员
-            val group= groupManager.getGroup(groupId)?:groupManager.fetchChatGroup(groupId)
-            group.owner?.let{
-                val ownerInfo = CallKitClient.getCache().getUserInfoById(it)
-                groupMemberList.add(ownerInfo)
+            val result = groupManager.fetchChatGroupMembers(groupId, cursor, LIMIT)
+            val data = CallKitClient.getCache().getUserInfosByIds(result.data)
+            groupMemberList.addAll(data)
+            
+            // 只在第一页时添加管理员和群主
+            if (isFirstPage) {
+                val group = groupManager.getGroup(groupId) ?: groupManager.fetchChatGroup(groupId)
+                group.owner?.let {
+                    val ownerInfo = CallKitClient.getCache().getUserInfoById(it)
+                    groupMemberList.add(0, ownerInfo) // 群主放在最前面
+                }
+                group.adminList?.let {
+                    val infos = CallKitClient.getCache().getUserInfosByIds(it)
+                    groupMemberList.addAll(1, infos) // 管理员放在群主后面
+                }
             }
-            group.adminList?.let {
-                val infos = CallKitClient.getCache().getUserInfosByIds(it)
-                groupMemberList.addAll(infos)
-            }
-            groupMemberList
+            ChatLog.d(TAG, "Fetched ${groupMemberList.size} members from server for group $groupId, currentCursor: $cursor, next cursor: ${result.cursor}, isFirstPage: $isFirstPage")
+            Pair(groupMemberList, result.cursor)
         } catch (e: Exception) {
-            ChatLog.e(TAG, "Unexpected error while fetching group members: ${e.message}, fallback to local data")
-            // 其他异常也回退到本地数据
-            return@withContext loadLocalMember(groupId)
+            ChatLog.e(TAG, "Unexpected error while fetching group members: ${e.message}")
+            throw e
         }
-
     }
 }

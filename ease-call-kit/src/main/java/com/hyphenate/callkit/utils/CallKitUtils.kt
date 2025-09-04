@@ -282,7 +282,7 @@ import android.app.KeyguardManager
      */
      fun checkMemberCountLimit(context: Context,memberCount: Int): Boolean {
         if (memberCount > Constant.MAX_NUMBER_OF_CHANNEL) {
-            Toast.makeText(context, context.getString(R.string.callkit_over_max_members), Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.callkit_over_max_members,Constant.MAX_NUMBER_OF_CHANNEL), Toast.LENGTH_SHORT).show()
             return true
         }
         return false

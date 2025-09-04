@@ -39,7 +39,7 @@
     <string name="callkit_over_max_members">The number exceeds the maximum limit of %1$d</string>
 
     <string name="callkit_waiting">waiting</string>
-    <string name="callkit_calling">calling</string>
+    <string name="callkit_calling">Callkit Calling</string>
     <string name="callkit_call_duration">Call Duration %1$s</string>
     <string name="callkit_self_cancel">Canceled</string>
     <string name="callkit_remote_refused">Remote Refused</string>

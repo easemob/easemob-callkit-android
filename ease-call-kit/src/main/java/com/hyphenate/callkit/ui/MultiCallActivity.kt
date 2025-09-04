@@ -43,7 +43,7 @@ import io.agora.utils2.internal.Connectivity.isConnected
  */
 open class MultiCallActivity : BaseCallActivity<ActivityMultiVideoCallBinding>() {
 
-    private val TAG = "MultiCallActivity"
+    private val TAG = "Callkit MultiCallActivity"
     private lateinit var viewModel: MultipleCallViewModel
     private lateinit var gridLayout: MultiVideoCallGridLayout
     private var rootIds = mutableListOf<View>()
@@ -316,6 +316,7 @@ open class MultiCallActivity : BaseCallActivity<ActivityMultiVideoCallBinding>()
     }
 
     private fun showOutgoingCallUI(callType: CallType) {
+        binding.callkitTitlebarView.ivAdd.visibility = View.VISIBLE
         binding.controlPanelConnectedAndOutgoing.root.visibility = View.VISIBLE
         binding.flBig.removeAllViews()
     }

@@ -29,59 +29,42 @@ import java.util.UUID
  */
 class VoipConnectionService : ConnectionService() {
 
-    private val TAG = "VoipConnectionService"
+    private val TAG = "Callkit VoipConnectionService"
     private val activeConnections = mutableMapOf<String, Connection>()
     private var callActionReceiver: BroadcastReceiver? = null
 
+    companion object {
+        @Volatile
+        private var instance: VoipConnectionService? = null
+        
+        fun getCurrentInstance(): VoipConnectionService? = instance
+        
+        fun endAllCallsDirectly() {
+            instance?.endTelecom()
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
-        registerCallActionReceiver()
+        instance = this
     }
 
     override fun onDestroy() {
+        ChatLog.d(TAG, "VoipConnectionService onDestroy() called - cleaning up")
+        instance = null
         super.onDestroy()
-        unregisterCallActionReceiver()
     }
-
-    private fun registerCallActionReceiver() {
-        callActionReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                val callId = intent?.getStringExtra("call_id") ?: return
-                val connection = activeConnections[callId] ?: return
-
-                when (intent.action) {
-                    "ACTION_ANSWER_CALL" -> {
-                        ChatLog.d(TAG, "Received answer action for call: $callId")
-                        connection.onAnswer()
-                    }
-
-                    "ACTION_REJECT_CALL" -> {
-                        ChatLog.d(TAG, "Received reject action for call: $callId")
-                        connection.onReject()
-                    }
-                }
+    fun endTelecom(){
+        val connectionsToEnd = activeConnections.values.toList()
+        connectionsToEnd.forEach { connection ->
+            try {
+                connection.onDisconnect()
+            } catch (e: Exception) {
+                ChatLog.e(TAG, "Error ending connection: ${e.message}")
             }
         }
-
-        val filter = IntentFilter().apply {
-            addAction("ACTION_ANSWER_CALL")
-            addAction("ACTION_REJECT_CALL")
-        }
-
-        // 使用 ContextCompat.registerReceiver 以支持所有Android版本
-        ContextCompat.registerReceiver(
-            this,
-            callActionReceiver,
-            filter,
-            ContextCompat.RECEIVER_NOT_EXPORTED
-        )
-    }
-
-    private fun unregisterCallActionReceiver() {
-        callActionReceiver?.let {
-            unregisterReceiver(it)
-            callActionReceiver = null
-        }
+        activeConnections.clear()
+        ChatLog.d(TAG, "All connections ended successfully")
     }
 
     override fun onCreateIncomingConnection(

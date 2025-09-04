@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.RecyclerView
+
 import com.hyphenate.callkit.adapter.GroupSelectListAdapter
 import com.hyphenate.callkit.base.BaseListFragment
 import com.hyphenate.callkit.base.BaseAdapter
@@ -17,11 +18,14 @@ import com.hyphenate.callkit.interfaces.IUIKitGroupResultView
 import com.hyphenate.callkit.interfaces.OnGroupSelectedListener
 import com.hyphenate.callkit.utils.ChatClient
 import com.hyphenate.callkit.utils.ChatGroup
+import com.hyphenate.callkit.utils.ChatLog
+import com.hyphenate.callkit.utils.OnLoadMoreListener
 import com.hyphenate.callkit.utils.catchChatException
 import com.hyphenate.callkit.viewmodel.CallKitGroupViewModel
 import kotlinx.coroutines.launch
 import kotlin.collections.toMutableList
 import kotlin.jvm.java
+
 /**
  * \~chinese
  * 选择群成员Fragment
@@ -39,6 +43,11 @@ open class SelectGroupMemberFragment : BaseListFragment<CallKitUserInfo>(),
 
     private var groupViewModel: IGroupRequest? = null
     private var listener: OnGroupSelectedListener? = null
+
+    // 分页相关变量
+    private var currentCursor: String? = null
+    private var isLoading = false
+    private var hasMoreData = true
 
     override fun initAdapter(): BaseAdapter<CallKitUserInfo> {
         return memberSelectAdapter
@@ -76,33 +85,52 @@ open class SelectGroupMemberFragment : BaseListFragment<CallKitUserInfo>(),
     }
 
     override fun refreshData() {
-        loadLocalData()
+        // 下拉刷新时重置分页状态
+        currentCursor = null
+        hasMoreData = true
+        sortedList.clear()
+        loadData()
     }
 
     open fun loadData() {
+        ChatLog.d(TAG, "loadData called - isLoading: $isLoading, hasMoreData: $hasMoreData, currentCursor: $currentCursor")
+        if (isLoading || !hasMoreData) return
+
+        isLoading = true
+        val isFirstPage = currentCursor == null
+
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                groupId?.let {
-                    groupViewModel?.fetchGroupMemberFromService(it)
+                groupId?.let { groupId ->
+                    groupViewModel
+                        ?.fetchGroupMemberFromService(groupId, currentCursor, isFirstPage)
                         ?.catchChatException { e ->
+                            isLoading = false
                             finishRefresh()
-                        }?.collect {
-                            fetchGroupMemberSuccess(it)
+                            binding?.srlContactRefresh?.finishLoadMore()
                         }
-                }
-            }
-        }
-    }
+                        ?.collect { result ->
+                            val (users, nextCursor) = result
+                            currentCursor = nextCursor
+                            hasMoreData = !nextCursor.isNullOrEmpty()
 
-    fun loadLocalData() {
-        finishRefresh()
-        lifecycleScope.launch {
-            groupId?.let { groupId ->
-                sortedList.clear()
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    groupViewModel?.loadLocalMember(groupId)?.collect {
-                        fetchGroupMemberSuccess(it)
-                    }
+                            if (isFirstPage) {
+                                sortedList.clear()
+                            }
+                            sortedList.addAll(users)
+
+                            mListAdapter.setData(sortedList)
+                            isLoading = false
+                            finishRefresh()
+
+                            if (hasMoreData) {
+                                binding?.srlContactRefresh?.finishLoadMore()
+                                ChatLog.d(TAG, "finishLoadMore - hasMoreData: true")
+                            } else {
+                                binding?.srlContactRefresh?.finishLoadMoreWithNoMoreData()
+                                ChatLog.d(TAG, "finishLoadMoreWithNoMoreData - hasMoreData: false")
+                            }
+                        }
                 }
             }
         }
@@ -130,5 +158,10 @@ open class SelectGroupMemberFragment : BaseListFragment<CallKitUserInfo>(),
         groupId?.apply {
             mListAdapter.setData(sortedList)
         }
+    }
+
+    override fun onLoadMore() {
+        ChatLog.d(TAG, "onLoadMore called")
+        loadData()
     }
 }

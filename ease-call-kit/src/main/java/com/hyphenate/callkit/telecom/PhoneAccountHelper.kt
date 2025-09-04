@@ -26,7 +26,7 @@ import com.hyphenate.callkit.utils.ChatLog
  * PhoneAccount helper class, used to manage and detect PhoneAccount status
  */
 object PhoneAccountHelper {
-    private const val TAG = "PhoneAccountHelper"
+    private const val TAG = "Callkit PhoneAccountHelper"
 
     /**
      * \~chinese
@@ -286,41 +286,26 @@ object PhoneAccountHelper {
      */
     @RequiresApi(Build.VERSION_CODES.M)
     fun getPhoneAccountStatus(context: Context): PhoneAccountStatus {
-        val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
-
-        if (telecomManager == null) {
-            return PhoneAccountStatus(
-                isSupported = false,
-                isRegistered = false,
-                isEnabled = false,
-                message = "TelecomManager不可用"
-            )
-        }
-
-        val phoneAccountHandle = getPhoneAccountHandle(context)
-        val phoneAccount = telecomManager.getPhoneAccount(phoneAccountHandle)
-
-        return when {
-            phoneAccount == null -> PhoneAccountStatus(
-                isSupported = true,
-                isRegistered = false,
-                isEnabled = false,
-                message = "PhoneAccount未注册"
-            )
-
-            !phoneAccount.isEnabled -> PhoneAccountStatus(
-                isSupported = true,
-                isRegistered = true,
-                isEnabled = false,
-                message = "PhoneAccount已注册但未启用"
-            )
-
-            else -> PhoneAccountStatus(
-                isSupported = true,
-                isRegistered = true,
-                isEnabled = true,
-                message = "PhoneAccount已启用，可正常使用"
-            )
+        var phoneAccount : PhoneAccount ?
+        try {
+            val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+            if (telecomManager == null) {
+                return PhoneAccountStatus(false ,false ,false ,"TelecomManager is not available")
+            }
+            val phoneAccountHandle = getPhoneAccountHandle(context)
+            phoneAccount = telecomManager.getPhoneAccount(phoneAccountHandle)
+            ChatLog.d(TAG, "PhoneAccount details: $phoneAccount")
+            return when {
+                phoneAccount == null -> PhoneAccountStatus(true ,false ,false ,"PhoneAccount is supported but not registered")
+                !phoneAccount.isEnabled -> PhoneAccountStatus(true ,true ,false ,"PhoneAccount is registered but not enabled")
+                else -> PhoneAccountStatus(true ,true ,true ,"PhoneAccount is enabled")
+            }
+        } catch (e: SecurityException) {
+            ChatLog.e(TAG, "Security exception checking phone account: ${e.message}")
+            return PhoneAccountStatus(false ,false ,false ,e.message?:"permission not granted")
+        } catch (e: Exception) {
+            ChatLog.e(TAG, "Exception checking phone account: ${e.message}")
+            return PhoneAccountStatus(false ,false ,false ,e.message?:"checking phone account error")
         }
     }
 

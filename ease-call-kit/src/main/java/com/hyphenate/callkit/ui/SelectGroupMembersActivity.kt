@@ -31,7 +31,7 @@ import com.hyphenate.callkit.base.BaseCallActivity
  */
 class SelectGroupMembersActivity : AppCompatActivity() {
     companion object {
-        private const val TAG = "SelectGroupMembersActivity"
+        private const val TAG = "Callkit SelectGroupMembersActivity"
         const val REQUEST_CODE_INVITE_MEMBERS = 1001
         const val EXTRA_SELECTED_MEMBERS = "selected_members"
 
@@ -73,7 +73,7 @@ class SelectGroupMembersActivity : AppCompatActivity() {
         initData(savedInstanceState)
         binding?.tvAdd?.setOnClickListener {
             if (newCall){
-                if (checkMemberCountLimit(this,selectedMembers.size)){
+                if (checkMemberCountLimit(this,selectedMembers.size+(existMembers?.size?:0))){
                     return@setOnClickListener
                 }
                 CallKitClient.inviteeUsers.clear()

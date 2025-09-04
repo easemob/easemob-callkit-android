@@ -1,10 +1,6 @@
 package com.hyphenate.callkit.widget
 
 import android.content.Context
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.RectF
 import android.util.AttributeSet
 import android.util.Log
 import android.view.LayoutInflater
@@ -14,7 +10,6 @@ import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.core.content.ContextCompat
 import coil.load
 import com.hyphenate.callkit.R
 import com.hyphenate.callkit.bean.CallKitUserInfo
@@ -40,8 +35,6 @@ class MultiVideoCallMemberView @JvmOverloads constructor(
 
     companion object {
         private const val TAG = "MultiVideoCallMemberView"
-        private const val BORDER_WIDTH = 3f
-        private const val CORNER_RADIUS = 8f
     }
 
     // UI组件
@@ -57,14 +50,8 @@ class MultiVideoCallMemberView @JvmOverloads constructor(
     // 用户信息 - 包含所有状态
     private var userInfo: CallKitUserInfo? = null
     
-    // 绘制相关
-    private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val speakingPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val rectF = RectF()
-
     init {
         initView()
-        initPaint()
     }
 
     private fun initView() {
@@ -85,39 +72,6 @@ class MultiVideoCallMemberView @JvmOverloads constructor(
 
         // 设置默认状态
         updateUI()
-        ChatLog.d(TAG, "initView() completed, all UI components initialized")
-    }
-
-    private fun initPaint() {
-        borderPaint.apply {
-            style = Paint.Style.STROKE
-            strokeWidth = BORDER_WIDTH
-            color = Color.TRANSPARENT
-        }
-        
-        speakingPaint.apply {
-            style = Paint.Style.STROKE
-            strokeWidth = BORDER_WIDTH * 2
-            color = ContextCompat.getColor(context, R.color.callkit_speaking_indicator_color)
-        }
-        ChatLog.d(TAG, "initPaint() completed, borderPaint and speakingPaint configured")
-    }
-
-    override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
-        
-        // 绘制说话状态边框
-        val isSpeaking = userInfo?.isSpeaking ?: false
-        if (isSpeaking) {
-            rectF.set(
-                speakingPaint.strokeWidth / 2,
-                speakingPaint.strokeWidth / 2,
-                width - speakingPaint.strokeWidth / 2,
-                height - speakingPaint.strokeWidth / 2
-            )
-            canvas.drawRoundRect(rectF, CORNER_RADIUS, CORNER_RADIUS, speakingPaint)
-            ChatLog.d(TAG, "onDraw() speaking border drawn")
-        }
     }
 
     /**
@@ -132,23 +86,9 @@ class MultiVideoCallMemberView @JvmOverloads constructor(
      * 设置用户信息 - 这是主要的更新入口
      */
     fun setUserInfo(userInfo: CallKitUserInfo) {
-        ChatLog.d(TAG, "setUserInfo() called, userId: ${userInfo.userId}, nickName: ${userInfo.nickName}")
         this.userInfo = userInfo
         // 更新UI
         updateUI()
-    }
-
-    private fun loadUserAvatar(userInfo: CallKitUserInfo) {
-        if (!userInfo.avatar.isNullOrEmpty()) {
-            ChatLog.d(TAG, "loadUserAvatar() loading avatar: ${userInfo.avatar}")
-            avatarImageView.load(userInfo.avatar) {
-                error(R.drawable.callkit_video_default)
-                placeholder(R.drawable.callkit_video_default)
-            }
-        } else {
-            ChatLog.d(TAG, "loadUserAvatar() using default avatar")
-            avatarImageView.setImageResource(R.drawable.callkit_video_default)
-        }
     }
 
     /**
@@ -170,12 +110,19 @@ class MultiVideoCallMemberView @JvmOverloads constructor(
     fun setVideoEnabled(enabled: Boolean) {
         ChatLog.d(TAG, "setVideoEnabled() called, enabled: $enabled")
         userInfo?.let { info ->
-            if (info.isVideoEnabled != enabled) {
-                // 更新userInfo中的状态
-                info.isVideoEnabled = enabled
-                updateUI()
-                ChatLog.d(TAG, "setVideoEnabled() video status changed to: $enabled")
+            info.isVideoEnabled=enabled
+            // 更新视频显示
+            if (info.isVideoEnabled) {
+                videoTexture.visibility = VISIBLE
+            } else {
+                videoTexture.visibility = GONE
+                avatarImageView.visibility = VISIBLE
+                avatarImageView.load(userInfo?.avatar){
+                    error(R.drawable.callkit_video_default)
+                    placeholder(R.drawable.callkit_video_default)
+                }
             }
+            ChatLog.d(TAG, "setVideoEnabled() video status changed to: $enabled")
         }
     }
 
@@ -183,13 +130,11 @@ class MultiVideoCallMemberView @JvmOverloads constructor(
      * 兼容性方法 - 设置麦克风启用状态
      */
     fun setMicEnabled(enabled: Boolean) {
-        ChatLog.d(TAG, "setMicEnabled() called, enabled: $enabled")
         userInfo?.let { info ->
-            if (info.isMicEnabled != enabled) {
-                info.isMicEnabled = enabled
-                updateUI()
-                ChatLog.d(TAG, "setMicEnabled() mic status changed to: $enabled")
-            }
+            info.isMicEnabled=enabled
+            // 更新麦克风状态
+            micStatusImageView.visibility = if (info.isMicEnabled) GONE else VISIBLE
+            ChatLog.d(TAG, "setMicEnabled() mic status changed to: $enabled")
         }
     }
 
@@ -197,14 +142,14 @@ class MultiVideoCallMemberView @JvmOverloads constructor(
      * 兼容性方法 - 设置说话状态
      */
     fun setSpeaking(speaking: Boolean) {
-        ChatLog.d(TAG, "setSpeaking() called, speaking: $speaking")
         userInfo?.let { info ->
-            if (info.isSpeaking != speaking) {
-                info.isSpeaking = speaking
-                updateUI()
-                invalidate() // 重绘边框
-                ChatLog.d(TAG, "setSpeaking() speaking status changed to: $speaking")
+            info.isSpeaking=speaking
+            // 更新说话指示器
+            speakingIndicator.visibility = if (info.isSpeaking) VISIBLE else GONE
+            if (speaking){
+                micStatusImageView.visibility=GONE
             }
+            ChatLog.d(TAG, "setSpeaking() speaking status changed to: $speaking")
         }
     }
 
@@ -212,13 +157,9 @@ class MultiVideoCallMemberView @JvmOverloads constructor(
      * 兼容性方法 - 设置网络质量
      */
     fun setNetworkQuality(quality: NetworkQuality) {
-        ChatLog.d(TAG, "setNetworkQuality() called, quality: $quality")
         userInfo?.let { info ->
-            if (info.networkQuality != quality) {
-                info.networkQuality = quality
-                updateUI()
-                ChatLog.d(TAG, "setNetworkQuality() network quality changed to: $quality")
-            }
+            info.networkQuality=quality
+            updateNetworkStatus(info.networkQuality)
         }
     }
 
@@ -242,17 +183,15 @@ class MultiVideoCallMemberView @JvmOverloads constructor(
     private fun updateUI() {
         val info = userInfo
         if (info == null) {
-            Log.w(TAG, "updateUI() called but userInfo is null")
+            Log.e(TAG, "updateUI() called but userInfo is null")
             return
         }
 
-        ChatLog.d(TAG, "updateUI() called for user: ${info.userId}")
-        
+        ChatLog.d(TAG, "updateUI() called for user: ${info}")
+
         // 更新视频显示
         if (info.isVideoEnabled) {
             videoTexture.visibility = VISIBLE
-            avatarImageView.visibility = GONE
-            ChatLog.d(TAG, "updateUI() showing video view")
         } else {
             videoTexture.visibility = GONE
             avatarImageView.visibility = VISIBLE
@@ -260,54 +199,49 @@ class MultiVideoCallMemberView @JvmOverloads constructor(
                 error(R.drawable.callkit_video_default)
                 placeholder(R.drawable.callkit_video_default)
             }
-            ChatLog.d(TAG, "updateUI() showing avatar view")
         }
         // 更新连接状态
         cslConnecting.visibility = if (info.connected) GONE else VISIBLE
         
         // 更新麦克风状态
         micStatusImageView.visibility = if (info.isMicEnabled) GONE else VISIBLE
-        if (!info.isMicEnabled) {
-            micStatusImageView.setImageResource(R.drawable.callkit_mic_off)
+
+        updateNetworkStatus(info.networkQuality)
+
+        // 更新说话指示器
+        speakingIndicator.visibility = if (info.isSpeaking) VISIBLE else GONE
+        if (info.isSpeaking){
+            micStatusImageView.visibility=GONE
         }
-        ChatLog.d(TAG, "updateUI() mic status visibility: ${if (info.isMicEnabled) "GONE" else "VISIBLE"}")
-        
+
+        // 更新用户名显示
+        userNameTextView.text= info.getName()
+
+    }
+
+    private fun updateNetworkStatus(networkQuality: NetworkQuality) {
         // 更新网络状态
-        when (info.networkQuality) {
+        when (networkQuality) {
             NetworkQuality.GOOD -> {
                 networkStatusImageView.visibility = VISIBLE
                 networkStatusImageView.setImageResource(R.drawable.callkit_network_good)
-                ChatLog.d(TAG, "updateUI() network status: GOOD (visible)")
             }
             NetworkQuality.POOR -> {
                 networkStatusImageView.visibility = VISIBLE
                 networkStatusImageView.setImageResource(R.drawable.callkit_network_poor)
-                ChatLog.d(TAG, "updateUI() network status: POOR (visible)")
             }
             NetworkQuality.WORSE -> {
                 networkStatusImageView.visibility = VISIBLE
                 networkStatusImageView.setImageResource(R.drawable.callkit_network_worse)
-                ChatLog.d(TAG, "updateUI() network status: WORSE (visible)")
             }
             NetworkQuality.NONE -> {
                 networkStatusImageView.visibility = VISIBLE
                 networkStatusImageView.setImageResource(R.drawable.callkit_network_none)
-                ChatLog.d(TAG, "updateUI() network status: NONE (visible)")
             }
             NetworkQuality.UNKNOWN -> {
                 networkStatusImageView.visibility = View.GONE
-                ChatLog.d(TAG, "updateUI() network status: UNKNOWN (GONE)")
             }
         }
-        
-        // 更新说话指示器
-        speakingIndicator.visibility = if (info.isSpeaking) VISIBLE else GONE
-        ChatLog.d(TAG, "updateUI() speaking indicator visibility: ${if (info.isSpeaking) "VISIBLE" else "GONE"}")
-        
-        // 更新用户名显示
-        userNameTextView.text= info.getName()
-
-        ChatLog.d(TAG, "updateUI() completed for user: ${info.userId}")
     }
 
     /**

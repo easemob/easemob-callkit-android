@@ -92,7 +92,9 @@ class MultipleCallViewModel : BaseViewModel() {
     }
 
     fun changeCameraStatus() {
-        CallKitClient.rtcManager.changeCameraStatus()
+        if (callState.value != CallState.CALL_ALERTING){
+            CallKitClient.rtcManager.changeCameraStatus()
+        }
     }
     fun changeMicStatus() {
         CallKitClient.rtcManager.changeMicStatus()
@@ -174,18 +176,16 @@ class MultipleCallViewModel : BaseViewModel() {
     }
 
     fun getCallingGroupInfo()= flow{
-        if (CallKitClient.isComingCall){
-            emit(CallKitGroupInfo(CallKitClient.groupId,CallKitClient.groupName,CallKitClient.groupAvatar))
-        }else{
-            CallKitClient.getCache().getGroupInfoById(CallKitClient.groupId)?.let {
-                emit(CallKitGroupInfo(it.groupID,it.groupName,it.groupAvatar))
-            }?:run { emit(CallKitGroupInfo(CallKitClient.groupId,CallKitClient.groupName,CallKitClient.groupAvatar)) }
+        CallKitClient.getCache().getGroupInfoById(CallKitClient.groupId)?.let {
+            emit(CallKitGroupInfo(it.groupID,it.groupName,it.groupAvatar))
         }
     }
 
     fun inviteMembers(selectedMembers: ArrayList<String>) {
         // 直接发送邀请消息
         CallKitClient.inviteeUsers.addAll(selectedMembers)
+        //此时作为主叫
+        CallKitClient.isComingCall=false
         signalingManager.sendInviteMsg(selectedMembers, CallType.GROUP_CALL)
     }
 }

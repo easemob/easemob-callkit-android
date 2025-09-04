@@ -11,8 +11,11 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.hyphenate.callkit.databinding.CallkitFragmentBaseListBinding
 import com.hyphenate.callkit.interfaces.OnItemClickListener
-import com.scwang.smart.refresh.header.MaterialHeader
+import com.scwang.smart.refresh.footer.ClassicsFooter
+import com.scwang.smart.refresh.header.ClassicsHeader
 import com.scwang.smart.refresh.layout.SmartRefreshLayout
+import com.scwang.smart.refresh.layout.api.RefreshLayout
+import com.scwang.smart.refresh.layout.listener.OnRefreshLoadMoreListener
 import kotlinx.coroutines.launch
 
 /**
@@ -24,15 +27,11 @@ import kotlinx.coroutines.launch
  */
 abstract class BaseListFragment<T>:BaseFragment<CallkitFragmentBaseListBinding>(),
     OnItemClickListener {
+    protected val TAG = "Callkit "+this.javaClass.simpleName
     lateinit var srlContactRefresh:SmartRefreshLayout
     var mRecyclerView: RecyclerView? = null
     lateinit var mListAdapter: BaseAdapter<T>
     protected lateinit var concatAdapter: ConcatAdapter
-
-    companion object{
-        const val KEY_USER = "user"
-        const val KEY_SELECT_USER = "select_user"
-    }
 
     override fun initView(savedInstanceState: Bundle?) {
         super.initView(savedInstanceState)
@@ -40,7 +39,11 @@ abstract class BaseListFragment<T>:BaseFragment<CallkitFragmentBaseListBinding>(
             srlContactRefresh = it.srlContactRefresh
             val refreshHeader = it.srlContactRefresh.refreshHeader
             if (refreshHeader == null) {
-                it.srlContactRefresh.setRefreshHeader(MaterialHeader(context))
+                it.srlContactRefresh.setRefreshHeader(ClassicsHeader(context))
+            }
+            val refreshFooter = it.srlContactRefresh.refreshFooter
+            if (refreshFooter == null) {
+                it.srlContactRefresh.setRefreshFooter(ClassicsFooter(context))
             }
             mRecyclerView = if (initRecyclerView()?.isNotEmpty() == true){
                 initRecyclerView()
@@ -66,9 +69,18 @@ abstract class BaseListFragment<T>:BaseFragment<CallkitFragmentBaseListBinding>(
     override fun initListener() {
         super.initListener()
         mListAdapter.setOnItemClickListener(this)
-        srlContactRefresh.setOnRefreshListener {
-            refreshData()
-        }
+        srlContactRefresh.setEnableRefresh(true)
+        srlContactRefresh.setEnableLoadMore(true)
+        srlContactRefresh.setEnableLoadMoreWhenContentNotFull(true)
+        srlContactRefresh.setOnRefreshLoadMoreListener(object : OnRefreshLoadMoreListener {
+            override fun onRefresh(refreshLayout: RefreshLayout) {
+                refreshData()
+            }
+
+            override fun onLoadMore(refreshLayout: RefreshLayout) {
+                onLoadMore()
+            }
+        })
     }
 
     override fun initData() {
@@ -103,13 +115,9 @@ abstract class BaseListFragment<T>:BaseFragment<CallkitFragmentBaseListBinding>(
      * @return
      */
     protected abstract fun initAdapter(): BaseAdapter<T>
-
-
     protected abstract fun refreshData()
-
-
+    protected  abstract fun onLoadMore()
     override fun onItemClick(view: View?, position: Int) {
-
     }
 
     fun finishRefresh() {

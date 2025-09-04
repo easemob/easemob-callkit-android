@@ -10,12 +10,13 @@ import android.os.Bundle
 import android.os.IBinder
 import android.telecom.TelecomManager
 import androidx.core.app.NotificationCompat
+import androidx.core.net.toUri
 import com.hyphenate.callkit.CallKitClient
 import com.hyphenate.callkit.R
 import com.hyphenate.callkit.telecom.PhoneAccountHelper.getPhoneAccountHandle
 import com.hyphenate.callkit.utils.ChatLog
 import java.util.UUID
-import androidx.core.net.toUri
+import kotlin.jvm.java
 
 /**
  * \~chinese
@@ -28,7 +29,7 @@ class IncomingCallService : Service() {
 
     // 兼容旧版本的常量
     companion object {
-        private val TAG = "IncomingCallService"
+        private val TAG = "Callkit IncomingCallService"
         const val EXTRA_CALLER_DISPLAY_NAME_COMPAT =
             "android.telecom.extra.CALLER_DISPLAY_NAME"
 
@@ -40,12 +41,12 @@ class IncomingCallService : Service() {
          * Start foreground service
          */
         @Throws(Exception::class)
-        fun startService(context: Context, callerId: String, callerName: String) {
+        fun startService(context: Context, callerId: String, callerName: String, callId: String) {
             val intent = Intent(context, IncomingCallService::class.java).apply {
                 action = "INCOMING_CALL"
                 putExtra("callerId", callerId)
                 putExtra("callerName", callerName)
-                putExtra("callId", "call_${System.currentTimeMillis()}")
+                putExtra("callId", callId)
             }
             // Android 8.0+ 需要使用前台服务
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -69,7 +70,6 @@ class IncomingCallService : Service() {
         }
     }
 
-    private lateinit var telecomManager: TelecomManager
 
     override fun onCreate() {
         super.onCreate()
@@ -77,7 +77,6 @@ class IncomingCallService : Service() {
 
         // 立即启动前台服务（Android 8.0+ 必需）
         startForegroundService()
-        telecomManager = getSystemService(TELECOM_SERVICE) as TelecomManager
     }
 
     private fun startForegroundService() {
@@ -122,63 +121,11 @@ class IncomingCallService : Service() {
             val callerName = intent.getStringExtra("callerName") ?: "Unknown contact"
             val callId = intent.getStringExtra("callId") ?: UUID.randomUUID().toString()
 
-            handleIncomingCall(callerId, callerName, callId)
+            TelecomHelper.handleIncomingCall(this,callerId, callerName, callId)
         }
         return START_STICKY
     }
 
-    /**
-     * \~chinese
-     * 处理来电
-     *
-     * \~english
-     * Handle incoming call
-     */
-    private fun handleIncomingCall(callerId: String, callerName: String, callId: String) {
-        // 检查设备兼容性
-        val status = PhoneAccountHelper.getPhoneAccountStatus(this)
-        if (!status.isSupported or !status.isRegistered or !status.isEnabled) {
-            ChatLog.e(
-                TAG,
-                "Phone account is not supported or not registered or not enabled: ${status.message}"
-            )
-            // 如果PhoneAccount未启用，直接启动自定义来电界面
-            startCustomIncomingCallActivity(callerId, callerName, callId)
-            return
-        }
-
-        // 创建来电参数
-        val extras = Bundle().apply {
-            val uri = "tel:$callerId".toUri()
-            putParcelable(TelecomManager.EXTRA_INCOMING_CALL_ADDRESS, uri)
-            putString(TelecomManager.EXTRA_INCOMING_CALL_EXTRAS, callerName)
-            putString("call_id", callId)
-            putBoolean(TelecomManager.EXTRA_START_CALL_WITH_SPEAKERPHONE, false)
-            putString(TelecomManager.EXTRA_CALL_SUBJECT, callerName)
-        }
-
-        // 触发系统来电界面
-        try {
-            ChatLog.d(TAG, "Attempting to add incoming call with extras: $extras")
-            telecomManager.addNewIncomingCall(getPhoneAccountHandle(this), extras)
-            ChatLog.d(
-                TAG,
-                "Incoming call added successfully: $callerName ($callerId), Call ID: $callId"
-            )
-        } catch (e: Exception) {
-            ChatLog.e(TAG, "Failed to add incoming call: ${e.message}")
-            startCustomIncomingCallActivity(callerId, callerName, callId)
-        }
-    }
-
-    private fun startCustomIncomingCallActivity(
-        callerId: String,
-        callerName: String,
-        callId: String
-    ) {
-        ChatLog.d(TAG, "Starting custom incoming call activity as fallback")
-        CallKitClient.signalingManager.startSendEvent()
-    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 }

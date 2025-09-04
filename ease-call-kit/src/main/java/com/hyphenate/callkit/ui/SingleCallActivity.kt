@@ -1,6 +1,8 @@
 package com.hyphenate.callkit.ui
 
+import android.R.attr.duration
 import android.os.Bundle
+import android.provider.SyncStateContract.Helpers.update
 import android.view.LayoutInflater
 import android.view.TextureView
 import android.view.View
@@ -56,7 +58,9 @@ open class SingleCallActivity : BaseCallActivity<ActivitySingleCallBinding>() {
                 binding.viewConnectedVoice.root,
                 binding.viewConnectedVideo.root,
                 binding.flBig,
-                binding.flSmall
+                binding.cslSmallContainer,
+                binding.ivTopRemoteMicMute,
+                binding.viewConnectedVideo.llBottomRemoteMicMute
             )
         )
         viewModel = getViewModel(SingleCallViewModel::class.java, this)
@@ -64,6 +68,9 @@ open class SingleCallActivity : BaseCallActivity<ActivitySingleCallBinding>() {
     }
 
     override fun initListener() {
+        binding.flBig.setOnClickListener {
+            viewModel.setScreenCleanState(!viewModel.screenCleanState.value)
+        }
         //音频来电页面
         binding.viewIncomingVoice.ivIncomingVoiceAccept.setOnClickListener {
             viewModel.answerCall()
@@ -173,7 +180,7 @@ open class SingleCallActivity : BaseCallActivity<ActivitySingleCallBinding>() {
             finish()
         }
 
-        binding.flSmall.setOnClickListener {
+        binding.cslSmallContainer.setOnClickListener {
             //视频窗口切换
             viewModel.switchVideoLayout()
         }
@@ -196,6 +203,10 @@ open class SingleCallActivity : BaseCallActivity<ActivitySingleCallBinding>() {
                 launch {
                     viewModel.getCallingUserInfo().flowOn(Dispatchers.Main).collect {
                         binding.callkitTitlebarView.tvUsername.text = it.getName()
+                        binding.callkitTitlebarView.ivAvatar.load(it.avatar) {
+                            placeholder(R.drawable.callkit_default_avatar)
+                            error(R.drawable.callkit_default_avatar)
+                        }
                     }
                 }
                 //观察是否本地关闭摄像头
@@ -228,13 +239,13 @@ open class SingleCallActivity : BaseCallActivity<ActivitySingleCallBinding>() {
                             ChatLog.d(TAG, "setupRemoteVideo: $it")
                             if (it.isLocalShowInBigView) {
                                 setupRemoteVideo(
-                                    it.remoteMute,
+                                    it.remoteVideoMute,
                                     it.remoteUid,
                                     it.isLocalShowInBigView
                                 )
                             } else {
                                 setupLocalVideo(
-                                    it.remoteMute,
+                                    it.remoteVideoMute,
                                     it.remoteUid,
                                     it.isLocalShowInBigView
                                 )
@@ -253,7 +264,16 @@ open class SingleCallActivity : BaseCallActivity<ActivitySingleCallBinding>() {
                 }
 
                 launch {
-                    // 观察静音状态
+                    // 观察远端静音状态
+                    viewModel.remoteMicMute.collect {
+                        withContext(Dispatchers.Main) {
+                            updateRemoteMicMuteButton(it)
+                        }
+                    }
+                }
+
+                launch {
+                    // 观察自己静音状态
                     viewModel.localMicMute.collect { isMuted ->
                         withContext(Dispatchers.Main) {
                             updateMuteButton(isMuted)
@@ -278,6 +298,41 @@ open class SingleCallActivity : BaseCallActivity<ActivitySingleCallBinding>() {
                         }
                     }
                 }
+                launch {
+                    // 是否清屏
+                    viewModel.screenCleanState.collect { isScreenClean ->
+                        withContext(Dispatchers.Main) {
+                           updateScreenCleanUI(isScreenClean)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    private fun updateScreenCleanUI(isScreenClean: Boolean){
+        ChatLog.d(TAG,"updateScreenCleanUI isScreenClean=$isScreenClean")
+        if (isScreenClean){
+            binding.callkitTitlebarView.root.visibility = View.GONE
+            binding.viewConnectedVideo.root.visibility = View.GONE
+        }else{
+            binding.callkitTitlebarView.root.visibility = View.VISIBLE
+            binding.viewConnectedVideo.root.visibility = View.VISIBLE
+        }
+    }
+
+    private fun updateRemoteMicMuteButton(info: SingleCallViewModel.VideoLayoutInfo){
+        ChatLog.d(TAG,"updateRemoteMicMuteButton info=$info")
+        if (info.isLocalShowInBigView){
+            if (info.remoteMicMute){
+                binding.ivTopRemoteMicMute.visibility = View.VISIBLE
+            }else{
+                binding.ivTopRemoteMicMute.visibility = View.GONE
+            }
+        }else{
+            if (info.remoteMicMute){
+                binding.viewConnectedVideo.llBottomRemoteMicMute.visibility = View.VISIBLE
+            }else{
+                binding.viewConnectedVideo.llBottomRemoteMicMute.visibility = View.GONE
             }
         }
     }
@@ -428,9 +483,11 @@ open class SingleCallActivity : BaseCallActivity<ActivitySingleCallBinding>() {
         // 显示通话中界面
         when (callType) {
             CallType.SINGLE_VIDEO_CALL -> {
-                binding.viewConnectedVideo.root.visibility = View.VISIBLE
                 binding.flBig.visibility = View.VISIBLE
-                binding.flSmall.visibility = View.VISIBLE
+                binding.cslSmallContainer.visibility = View.VISIBLE
+                if (!viewModel.screenCleanState.value){
+                    binding.viewConnectedVideo.root.visibility = View.VISIBLE
+                }
             }
 
             CallType.SINGLE_VOICE_CALL -> {

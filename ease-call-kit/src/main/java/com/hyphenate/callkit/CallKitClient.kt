@@ -1,6 +1,7 @@
 package com.hyphenate.callkit
 
 import android.annotation.SuppressLint
+import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.text.TextUtils
@@ -16,7 +17,9 @@ import com.hyphenate.callkit.manager.IncomingCallTopWindow
 import com.hyphenate.callkit.manager.SignalingManager
 import com.hyphenate.callkit.manager.RtcManager
 import com.hyphenate.callkit.base.BaseCallActivity
+import com.hyphenate.callkit.global.CallKitActivityLifecycleCallback
 import com.hyphenate.callkit.interfaces.RTCConfigProvider
+import com.hyphenate.callkit.telecom.TelecomHelper
 import com.hyphenate.callkit.ui.SelectGroupMembersActivity
 import com.hyphenate.callkit.ui.MultiCallActivity
 import com.hyphenate.callkit.ui.SingleCallActivity
@@ -177,8 +180,6 @@ object CallKitClient {
     // 协程相关
     internal val callKitScope by lazy{ CoroutineScope(SupervisorJob() + Dispatchers.Default)}
     internal var groupId: String = ""
-    internal var groupName: String = ""
-    internal var groupAvatar: String = ""
 
 
     /**
@@ -220,6 +221,9 @@ object CallKitClient {
         rtcManager.init(mContext)
         floatWindow.init(mContext)
         cache.init()
+        (context.applicationContext as Application).registerActivityLifecycleCallbacks(
+            CallKitActivityLifecycleCallback()
+        )
         isInitialized = true
         return true
     }
@@ -281,36 +285,40 @@ object CallKitClient {
     fun startSingleCall(type: CallType, userID: String, ext: JSONObject? = null) {
 
         if (!ChatClient.getInstance().isLoggedIn){
-            callKitListener?.onCallError(
-                CallErrorType.IM_ERROR,
-                ChatError.USER_NOT_LOGIN,
-                "user not login, please login first",
-            )
+            val msg = "startSingleCall user not login, please login first"
+            ChatLog.e(TAG, msg)
+            callKitListener?.onCallError(CallErrorType.IM_ERROR,ChatError.USER_NOT_LOGIN,msg)
             return
         }
         if (callState.value != CallState.CALL_IDLE) {
+            val msg = "startSingleCall current state: ${callState.value} is busy"
+            ChatLog.e(TAG, msg)
             callKitListener?.onCallError(
                 CallErrorType.BUSINESS_ERROR,
                 CALL_BUSINESS_ERROR.CALL_STATE_BUSY_ERROR.code,
-                "current state is busy",
+                msg
             )
             return
         }
 
         if (type == CallType.GROUP_CALL) {
+            val msg = "startSingleCall call type:$type is error "
+            ChatLog.e(TAG, msg)
             callKitListener?.onCallError(
                 CallErrorType.BUSINESS_ERROR,
                 CALL_BUSINESS_ERROR.CALL_PARAM_ERROR.code,
-                "call type is error",
+                msg
             )
             return
         }
 
         if (userID.isEmpty()) {
+            val msg = "startSingleCall userID is empty"
+            ChatLog.e(TAG, msg)
             callKitListener?.onCallError(
                 CallErrorType.BUSINESS_ERROR,
                 CALL_BUSINESS_ERROR.CALL_PARAM_ERROR.code,
-                "user is empty",
+                msg
             )
             return
         }
@@ -328,11 +336,12 @@ object CallKitClient {
         // 开始1V1通话
         val intent = BaseCallActivity.createLockScreenIntent(mContext, SingleCallActivity::class.java)
         mContext.startActivity(intent)
+        ChatLog.d(TAG, "startSingleCall startSingleCallActivity complete")
     }
 
     internal fun sendInviteMsg() {
         //发送邀请信息
-        val array=mutableListOf<String>()
+        val array = mutableListOf<String>()
         if (callType.value == CallType.GROUP_CALL){
             array.addAll(inviteeUsers)
         } else{
@@ -351,29 +360,36 @@ object CallKitClient {
     fun startGroupCall(groupId: String, ext: JSONObject? = null) {
 
         if (!ChatClient.getInstance().isLoggedIn){
+            val msg = "startGroupCall user not login, please login first"
+            ChatLog.e(TAG, msg)
             callKitListener?.onCallError(
                 CallErrorType.IM_ERROR,
                 ChatError.USER_NOT_LOGIN,
-                "user not login, please login first",
+                msg
             )
             return
         }
 
-        if (callState.value != CallState.CALL_IDLE && callType.value != CallType.GROUP_CALL) {
+        if (callState.value != CallState.CALL_IDLE ) {
+            val msg = "startGroupCall current state: ${callState.value} is busy"
+            ChatLog.e(TAG, msg)
             callKitListener?.onCallError(
                 CallErrorType.BUSINESS_ERROR,
                 CALL_BUSINESS_ERROR.CALL_STATE_BUSY_ERROR.code,
-                "current state is busy",
+                msg
             )
             return
         }
 
         if (groupId.isEmpty()) {
+            val msg = "startGroupCall groupId is empty"
+            ChatLog.e(TAG, msg)
             callKitListener?.onCallError(
                 CallErrorType.BUSINESS_ERROR,
                 CALL_BUSINESS_ERROR.CALL_PARAM_ERROR.code,
-                "users or groupId is empty",
+                msg
             )
+            return
         }
         // 还没有加入群视频
         callType.value = CallType.GROUP_CALL
@@ -389,6 +405,7 @@ object CallKitClient {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             mContext.startActivity(this)
         }
+        ChatLog.d(TAG, "startGroupCall startGroupCallActivity complete")
     }
 
     /**
@@ -464,6 +481,9 @@ object CallKitClient {
      * Exit call
      */
     internal fun exitCall() {
+        if (isComingCall){
+            TelecomHelper.endCall(mContext) // 先处理Telecom连接
+        }
         signalingManager.exitCall()
         rtcManager.exitCall()
         floatWindow.exitCall()
@@ -475,12 +495,11 @@ object CallKitClient {
         fromUserId = ""
         channelName = null
         groupId = ""
-        groupName = ""
-        groupAvatar = ""
         isComingCall = true
         inviteExt=null
         cache.resetData()
         inviteeUsers.clear()
+        notifier.reset()
     }
 
     /**
@@ -514,5 +533,6 @@ object CallKitClient {
         cache.cleanUp()
         signalingManager.stopListening()
         callKitScope.cancel()
+        isInitialized=false
     }
 }

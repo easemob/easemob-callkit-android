@@ -42,7 +42,7 @@ import com.hyphenate.callkit.bean.Constant
 import com.hyphenate.callkit.service.CallForegroundService
 import com.hyphenate.callkit.utils.ChatLog
 import com.hyphenate.callkit.utils.PermissionHelper
-import com.hyphenate.callkit.utils.StatusBarCompat
+import com.hyphenate.callkit.viewmodel.SingleCallViewModel
 
 /**
  * \~chinese
@@ -53,7 +53,7 @@ import com.hyphenate.callkit.utils.StatusBarCompat
  */
 abstract class BaseCallActivity<T : ViewBinding> : AppCompatActivity() {
 
-    private val TAG = "BaseCallActivity"
+    private val TAG = "Callkit BaseCallActivity"
     lateinit var binding: T
     private var loadingDialog: AlertDialog? = null
     lateinit var mContext: Activity
@@ -274,85 +274,6 @@ abstract class BaseCallActivity<T : ViewBinding> : AppCompatActivity() {
         return ViewModelProvider(owner).get(viewModelClass)
     }
 
-    override fun setContentView(view: View?) {
-        super.setContentView(view)
-        setActivityTheme()
-    }
-
-    override fun setContentView(view: View?, params: ViewGroup.LayoutParams?) {
-        super.setContentView(view, params)
-        setActivityTheme()
-    }
-
-    override fun setContentView(layoutResID: Int) {
-        super.setContentView(layoutResID)
-        setActivityTheme()
-    }
-
-    open fun setActivityTheme() {
-        setFitSystemForTheme(true)
-    }
-
-    /**
-     * Common settings for activity
-     * @param fitSystemForTheme
-     */
-    open fun setFitSystemForTheme(fitSystemForTheme: Boolean) {
-        val colorResource = ContextCompat.getColor(this, R.color.callkit_color_background)
-        val isDark = AppCompatDelegate.getDefaultNightMode() != AppCompatDelegate.MODE_NIGHT_YES
-        setFitSystemForTheme(fitSystemForTheme, colorResource, isDark)
-    }
-
-    /**
-     * Can set the status bar's style and change the background color
-     * @param fitSystemForTheme
-     * @param color Color
-     */
-    open fun setFitSystemForTheme(
-        fitSystemForTheme: Boolean,
-        @ColorInt color: Int,
-        isDark: Boolean
-    ) {
-        setFitSystem(fitSystemForTheme)
-        StatusBarCompat.compat(this, color)
-        StatusBarCompat.setLightStatusBar(this, isDark)
-    }
-
-    /**
-     * Can set the status bar's style and change the background color
-     * @param fitSystemForTheme
-     * @param color Color string
-     */
-    open fun setFitSystemForTheme(fitSystemForTheme: Boolean, color: String?, isDark: Boolean) {
-        setFitSystem(fitSystemForTheme)
-        StatusBarCompat.compat(this, Color.parseColor(color))
-        StatusBarCompat.setLightStatusBar(this, isDark)
-    }
-
-    /**
-     * Set status bar's style
-     * @param fitSystemForTheme
-     */
-    private fun setFitSystem(fitSystemForTheme: Boolean) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
-        }
-        if (fitSystemForTheme) {
-            val contentFrameLayout = findViewById<View>(Window.ID_ANDROID_CONTENT) as ViewGroup
-            val parentView = contentFrameLayout.getChildAt(0)
-            if (parentView != null && Build.VERSION.SDK_INT >= 14) {
-                parentView.fitsSystemWindows = true
-            }
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            val window = window
-            window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
-            window.decorView.systemUiVisibility =
-                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-        }
-    }
-
     open fun showLoading(cancelable: Boolean) {
         if (loadingDialog == null) {
             loadingDialog =
@@ -490,9 +411,9 @@ abstract class BaseCallActivity<T : ViewBinding> : AppCompatActivity() {
         CallKitClient.rtcManager.enableForegroundMode()
     }
 
-    override fun onStop() {
-        super.onStop()
-        ChatLog.d(TAG, "onStop called")
+    override fun onPause() {
+        super.onPause()
+        ChatLog.d(TAG, "onPause called")
         // 当Activity进入后台时，需要同时处理悬浮窗和前台服务
         if (CallKitClient.callState.value != CallState.CALL_IDLE) {
             // 1. 启用后台模式，降低视频质量节省资源
@@ -589,6 +510,7 @@ abstract class BaseCallActivity<T : ViewBinding> : AppCompatActivity() {
                     }else{
                         CallKitClient.signalingManager.cancelCall(CallKitClient.callType.value)
                     }
+                    showToast("RTC Permissions not granted")
                 } else {
                     ChatLog.d(TAG, "Permissions granted, initializing activity.")
                     init(null)

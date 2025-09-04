@@ -1,13 +1,17 @@
 package com.hyphenate.callkit.utils
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
+import com.hyphenate.callkit.telecom.TelecomHelper
 
 /**
  * \~chinese
@@ -138,5 +142,25 @@ object PermissionHelper {
             }
             .setCancelable(false)
             .show()
+    }
+
+    /**
+     * \~chinese
+     * 检查是否有READ_PHONE_STATE权限
+     *
+     * \~english
+     * Check if READ_PHONE_STATE permission is granted
+     */
+    fun hasReadPhoneStatePermission(context: Context): Boolean {
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_PHONE_STATE
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!hasPermission) {
+            ChatLog.w(TAG, "READ_PHONE_STATE permission not granted")
+        }
+
+        return hasPermission
     }
 } 

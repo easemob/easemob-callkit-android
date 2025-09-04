@@ -14,7 +14,8 @@ enum class CallAction(val state: String) {
     CALL_CANCEL("cancelCall"),
     CALL_ANSWER("answerCall"),
     CALL_CONFIRM_CALLEE("confirmCallee"),
-    CALL_VIDEO_TO_VOICE("videoToVoice");
+    CALL_VIDEO_TO_VOICE("videoToVoice"),
+    CALL_END("leaveCall");
 
     companion object {
         fun getfrom(state: String): CallAction {
@@ -26,6 +27,7 @@ enum class CallAction(val state: String) {
                 "answerCall" -> CallAction.CALL_ANSWER
                 "confirmCallee" -> CallAction.CALL_CONFIRM_CALLEE
                 "videoToVoice" -> CallAction.CALL_VIDEO_TO_VOICE
+                "leaveCall" -> CallAction.CALL_END
                 else -> CallAction.CALL_INVITE
             }
         }

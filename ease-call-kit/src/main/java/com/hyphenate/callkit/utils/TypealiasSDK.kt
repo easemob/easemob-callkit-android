@@ -131,6 +131,5 @@ typealias IRefresh = com.scwang.smart.refresh.layout.api.RefreshLayout
 typealias OnRefreshListener = com.scwang.smart.refresh.layout.listener.OnRefreshListener
 typealias OnLoadMoreListener = com.scwang.smart.refresh.layout.listener.OnLoadMoreListener
 typealias OnRefreshLoadMoreListener = com.scwang.smart.refresh.layout.listener.OnRefreshLoadMoreListener
-typealias RefreshHeader = com.scwang.smart.refresh.header.MaterialHeader
 
 typealias RTCTokenInfo=com.hyphenate.chat.EMRTCTokenInfo

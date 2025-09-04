@@ -4,7 +4,7 @@ plugins {
 }
 android {
     namespace = "com.hyphenate.callkit"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         minSdk = 24
@@ -54,13 +54,15 @@ dependencies {
 
     // Refresh layout
     implementation("io.github.scwang90:refresh-layout-kernel:3.0.0-alpha")
-    implementation("io.github.scwang90:refresh-header-material:3.0.0-alpha")
+    implementation("io.github.scwang90:refresh-header-classics:3.0.0-alpha")
+    implementation("io.github.scwang90:refresh-footer-classics:3.0.0-alpha")
 
     // 集成 lite SDK
-    api ("io.agora.rtc:lite-sdk:4.5.1")
+    api("io.agora.rtc:lite-sdk:4.5.1")
 
-    api ("io.hyphenate:hyphenate-chat:4.16.0")
+    api("io.hyphenate:hyphenate-chat:4.16.0")
 //    implementation(project(mapOf("path" to ":hyphenatechatsdk")))
+
 }
 
 //apply {from("../script/maven-push-release.gradle")}

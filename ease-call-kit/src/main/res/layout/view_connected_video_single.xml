@@ -5,10 +5,28 @@
     android:layout_height="wrap_content"
     android:paddingBottom="54dp">
 
+    <FrameLayout
+        android:id="@+id/ll_bottom_remote_mic_mute"
+        app:layout_constraintStart_toStartOf="@id/iv_connected_video_flip"
+        app:layout_constraintTop_toTopOf="parent"
+        android:layout_width="wrap_content"
+        android:padding="4dp"
+        android:visibility="gone"
+        android:background="@drawable/shape_rectangle_bg_50000000_conner_6"
+        android:layout_height="wrap_content">
+        <ImageView
+            android:src="@drawable/callkit_mic_off_small"
+            android:layout_width="14dp"
+            android:layout_height="14dp"/>
+    </FrameLayout>
+
+
+
     <com.hyphenate.callkit.widget.CallKitImageView
         android:id="@+id/iv_connected_video_flip"
         android:layout_width="50dp"
         android:layout_height="50dp"
+        android:layout_marginTop="20dp"
         android:background="@color/callkit_button_on_background"
         android:padding="8dp"
         android:scaleType="centerCrop"
@@ -17,7 +35,7 @@
         app:layout_constraintEnd_toStartOf="@id/iv_connected_video_mic"
         app:layout_constraintHorizontal_chainStyle="spread"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/ll_bottom_remote_mic_mute" />
 
     <TextView
         android:id="@+id/tv_connected_video_flip"

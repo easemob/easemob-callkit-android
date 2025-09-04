@@ -13,9 +13,7 @@ import android.view.ViewGroup
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import androidx.core.view.children
-import androidx.core.view.get
 import androidx.core.view.isGone
-import coil.size.OriginalSize
 import kotlin.math.ceil
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -253,6 +251,14 @@ class MultiVideoCallGridLayout @JvmOverloads constructor(
                 }
             }
         }
+        originalViews.forEach {
+            setChildViewVisiable(it,R.id.ll_container,VISIBLE)
+            if (originalViews.size<=6){
+                setChildViewVisiable(it,R.id.user_name,VISIBLE)
+            }else{
+                setChildViewVisiable(it,R.id.user_name,GONE)
+            }
+        }
     }
 
     private fun layoutFocusMode() {
@@ -305,7 +311,6 @@ class MultiVideoCallGridLayout @JvmOverloads constructor(
                         switchFocusedView(clickedView)
                     }
                 }
-                setChildViewVisiable(it,GONE)
             }
         if (bottomScrollView?.parent !=this@MultiVideoCallGridLayout){
             (bottomScrollView?.parent as? ViewGroup)?.removeView(bottomScrollView)
@@ -321,6 +326,15 @@ class MultiVideoCallGridLayout @JvmOverloads constructor(
             val right = paddingLeft + availableWidth
             val bottom = top + mainViewHeight + verticalSpacing+ bottomRowHeight
             scrollView.layout(left, top, right, bottom)
+        }
+        originalViews.forEach {
+            if (it != focusedView) {
+                setChildViewVisiable(it, R.id.ll_container, GONE)
+                setChildViewVisiable(it, R.id.network_status, GONE)
+            }else{
+                setChildViewVisiable(it, R.id.ll_container, VISIBLE)
+                setChildViewVisiable(it, R.id.network_status, VISIBLE)
+            }
         }
     }
 
@@ -523,12 +537,8 @@ class MultiVideoCallGridLayout @JvmOverloads constructor(
         animatorSet.playTogether(animators)
         animatorSet.duration = ANIMATION_DURATION
         animatorSet.addListener(object : AnimatorListenerAdapter() {
-            override fun onAnimationStart(animation: Animator) {
-                setChildViewVisiable(newFocusView,GONE)
-            }
 
             override fun onAnimationEnd(animation: Animator) {
-                setChildViewVisiable(newFocusView,VISIBLE)
                 // 重置newFocusView的变换属性
                 newFocusView.translationX = 0f
                 newFocusView.translationY = 0f
@@ -604,9 +614,9 @@ class MultiVideoCallGridLayout @JvmOverloads constructor(
         animatorSet.start()
     }
 
-    private fun setChildViewVisiable(view: View, visiable: Int) {
-        if (view is MultiVideoCallMemberView) {
-            val llContainer = view.findViewById<View>(R.id.ll_container)
+    private fun setChildViewVisiable(parentView: View,restID:Int, visiable: Int) {
+        if (parentView is MultiVideoCallMemberView) {
+            val llContainer = parentView.findViewById<View>(restID)
             llContainer?.visibility=visiable
         }
     }

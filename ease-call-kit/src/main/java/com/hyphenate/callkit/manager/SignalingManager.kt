@@ -1,12 +1,13 @@
 package com.hyphenate.callkit.manager
 
-import android.R.id.message
 import android.text.TextUtils
+import android.util.Log
 import com.hyphenate.EMCallBack
+import com.hyphenate.EMConnectionListener
 import com.hyphenate.EMMessageListener
-import com.hyphenate.chat.EMCmdMessageBody
 import com.hyphenate.callkit.CallKitClient
 import com.hyphenate.callkit.CallKitClient.CallErrorType
+import com.hyphenate.callkit.CallKitClient.audioController
 import com.hyphenate.callkit.CallKitClient.callID
 import com.hyphenate.callkit.CallKitClient.callKitListener
 import com.hyphenate.callkit.CallKitClient.callKitScope
@@ -16,15 +17,12 @@ import com.hyphenate.callkit.CallKitClient.callerDevId
 import com.hyphenate.callkit.CallKitClient.channelName
 import com.hyphenate.callkit.CallKitClient.deviceId
 import com.hyphenate.callkit.CallKitClient.fromUserId
-import com.hyphenate.callkit.CallKitClient.groupAvatar
 import com.hyphenate.callkit.CallKitClient.groupId
-import com.hyphenate.callkit.CallKitClient.groupName
 import com.hyphenate.callkit.CallKitClient.inviteExt
 import com.hyphenate.callkit.CallKitClient.isComingCall
 import com.hyphenate.callkit.CallKitClient.mContext
-import com.hyphenate.callkit.CallKitClient.signalingManager
 import com.hyphenate.callkit.CallKitClient.rtcManager
-import com.hyphenate.callkit.CallKitClient.audioController
+import com.hyphenate.callkit.CallKitClient.signalingManager
 import com.hyphenate.callkit.CallKitClient.startCallActivity
 import com.hyphenate.callkit.R
 import com.hyphenate.callkit.bean.CallAction
@@ -35,7 +33,6 @@ import com.hyphenate.callkit.bean.CallKitUserInfo
 import com.hyphenate.callkit.bean.CallState
 import com.hyphenate.callkit.bean.CallType
 import com.hyphenate.callkit.bean.Constant
-import com.hyphenate.callkit.bean.Constant.CALL_GROUPINFO
 import com.hyphenate.callkit.bean.Constant.CALL_INVITE_EXT
 import com.hyphenate.callkit.bean.NetworkQuality
 import com.hyphenate.callkit.event.AlertEvent
@@ -44,15 +41,18 @@ import com.hyphenate.callkit.event.BaseEvent
 import com.hyphenate.callkit.event.CallCancelEvent
 import com.hyphenate.callkit.event.ConfirmCallEvent
 import com.hyphenate.callkit.event.ConfirmRingEvent
+import com.hyphenate.callkit.event.LeaveEvent
 import com.hyphenate.callkit.extension.addUserInfo
 import com.hyphenate.callkit.extension.getUserInfo
 import com.hyphenate.callkit.telecom.TelecomHelper
 import com.hyphenate.callkit.utils.CallKitUtils
 import com.hyphenate.callkit.utils.CallKitUtils.isAppRunningForeground
 import com.hyphenate.callkit.utils.ChatClient
+import com.hyphenate.callkit.utils.ChatConnectionListener
 import com.hyphenate.callkit.utils.ChatConversationType
 import com.hyphenate.callkit.utils.ChatLog
 import com.hyphenate.callkit.utils.ChatMessage
+import com.hyphenate.callkit.utils.ChatMessageListener
 import com.hyphenate.callkit.utils.ChatMessageType
 import com.hyphenate.callkit.utils.ChatTextMessageBody
 import com.hyphenate.callkit.utils.ChatType
@@ -60,13 +60,17 @@ import com.hyphenate.callkit.utils.PermissionHelper.hasFloatWindowPermission
 import com.hyphenate.callkit.utils.TimerUtils
 import com.hyphenate.callkit.utils.TimerUtils.startTimer
 import com.hyphenate.callkit.utils.TimerUtils.stopTimer
+import com.hyphenate.chat.EMCmdMessageBody
+import com.hyphenate.chat.EMLoginExtensionInfo
+import com.hyphenate.chat.EMMessage
 import com.hyphenate.exceptions.HyphenateException
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.concurrent.Volatile
 
 
@@ -84,12 +88,13 @@ class SignalingManager {
     companion object {
         private const val TAG = "Callkit SignalingManager"
     }
-    private var messageListener: EMMessageListener? = null
+    private var messageListener: ChatMessageListener? = null
+    private var connectionListener: ChatConnectionListener? = null
     private var isListening = false
     @Volatile
     private var mConfirm_ring = false
     //存储邀请用户的超时时间戳
-    private val inViteUserMap =mutableMapOf<String, Long>()
+    private val inViteUserMap = ConcurrentHashMap<String, Long>()
     private var commonTimerJob: Job? = null
     private var alertTimerJob: Job? = null
     private var eventJob: Job? = null
@@ -102,10 +107,12 @@ class SignalingManager {
      * \~english
      * Send start activity event - use coroutine instead of Handler message
      */
-    internal fun startSendEvent() {
+    internal fun startSendEvent(delay: Long=500) {
         eventJob?.cancel()
         eventJob = callKitScope.launch {
             stopAlertTimer()
+            //从通知栏点击进来会出现callactivity被MainActivity覆盖的问题,加个延时
+            delay(delay)
             // 切换到主线程执行UI操作
             withContext(Dispatchers.Main) {
                 startCallActivity()
@@ -142,14 +149,7 @@ class SignalingManager {
                     }
                     if (inViteUserMap.size == 0) {
                         stopCommonTimer()
-                        val participant = rtcManager.participants.value
-                        if (participant.size==1){
-                            //如果只有自己一个人，退出频道
-                            updateMessage(0,CallEndReason.CallEndReasonRemoteNoResponse)
-                            callKitListener?.onEndCallWithReason(CallEndReason.CallEndReasonRemoteNoResponse, callInfo)
-                            audioController.stopPlayRingAndPlayDing()
-                            exitChannel()
-                        }
+                        audioController.stopPlayRing()
                     }
                 } else {
                     if (timePassed  == timeout) {
@@ -247,9 +247,29 @@ class SignalingManager {
         }
 
         messageListener = createMessageListener()
+        connectionListener=createConnectionListener()
         ChatClient.getInstance().chatManager().addMessageListener(messageListener)
+        ChatClient.getInstance().addConnectionListener(connectionListener)
         isListening = true
         ChatLog.d(TAG, "Started listening to messages")
+    }
+
+    private fun createConnectionListener(): ChatConnectionListener? {
+        return object : ChatConnectionListener{
+            override fun onConnected() {
+
+            }
+
+            override fun onDisconnected(p0: Int) {
+
+            }
+
+            override fun onLogout(errorCode: Int, info: EMLoginExtensionInfo?) {
+                super.onLogout(errorCode, info)
+                CallKitClient.endCall()
+            }
+
+        }
     }
 
     /**
@@ -264,11 +284,14 @@ class SignalingManager {
             ChatLog.d(TAG, "Not listening to messages")
             return
         }
-
         messageListener?.let { listener ->
             ChatClient.getInstance().chatManager().removeMessageListener(listener)
         }
+        connectionListener?.let { listener->
+            ChatClient.getInstance().removeConnectionListener(listener)
+        }
         messageListener = null
+        connectionListener = null
         isListening = false
         ChatLog.d(TAG, "Stopped listening to messages")
     }
@@ -312,7 +335,7 @@ class SignalingManager {
 
             var ext: JSONObject? = null
             try {
-                ext = message.getJSONObjectAttribute(Constant.CALL_INVITE_EXT)
+                ext = message.getJSONObjectAttribute(CALL_INVITE_EXT)
             } catch (e: HyphenateException) {
                 ChatLog.e(TAG, "Error getting invite ext" + e.message)
             }
@@ -333,6 +356,10 @@ class SignalingManager {
             val callAction = CallAction.getfrom(action)
             when (callAction) {
                 CallAction.CALL_INVITE -> {
+                    if (fromUser == CallKitClient.getCurrentUserID()){
+                        //不处理自己多设备的信令
+                        return
+                    }
                     val calltype = message.getIntAttribute(Constant.CALL_TYPE, 0)
                     val callkitType = CallType.getfrom(calltype)
                     if (callState.value != CallState.CALL_IDLE) {
@@ -365,8 +392,9 @@ class SignalingManager {
                             try {
                                 val groupInfoJson = message.getJSONObjectAttribute(Constant.CALL_GROUPINFO)
                                 groupId = groupInfoJson.optString(Constant.CALL_GROUP_ID, "")
-                                groupName = groupInfoJson.optString(Constant.CALL_GROUP_NAME, "")
-                                groupAvatar = groupInfoJson.optString(Constant.CALL_GROUP_AVATAR, "")
+                                val groupName = groupInfoJson.optString(Constant.CALL_GROUP_NAME, "")
+                                val groupAvatar = groupInfoJson.optString(Constant.CALL_GROUP_AVATAR, "")
+                                CallKitClient.getCache().insertGroup(groupId,CallKitGroupInfo(groupId,groupName,groupAvatar))
                             } catch (e: Exception) {
                                 ChatLog.e(TAG, "Error getting invite ext" + e.message)
                             }
@@ -408,7 +436,12 @@ class SignalingManager {
             when (callAction) {
                 CallAction.CALL_CANCEL -> {
 
-                    if (callState.value === CallState.CALL_IDLE) {
+                    if (fromCallId != callID || callState.value != CallState.CALL_ALERTING){
+                        ChatLog.e(TAG, "Received CALL_CANCEL, but callId does not match or callState is not ALERTING, ignoring。fromCallId:$fromCallId, callID:$callID, callState:${callState.value}")
+                        return
+                    }
+
+                    if (callState.value == CallState.CALL_IDLE) {
                         stopAlertTimer()
                         // 隐藏顶部悬浮窗
                         CallKitClient.incomingCallTopWindow.hideIncomingCallTopWindow()
@@ -437,7 +470,12 @@ class SignalingManager {
                 }
 
                 CallAction.CALL_ALERT -> {
+                    if (callerDevId!=deviceId){
+                        ChatLog.e(TAG,"receive cmd alert, callerDevId: $callerDevId not equals to self deviceId: $deviceId,ignore")
+                        return
+                    }
                     val calleedDeviceId = message.getStringAttribute(Constant.CALLED_DEVICE_ID, "")
+
                     //判断会话是否有效
                     val ringEvent = ConfirmRingEvent()
                     if (callType.value== CallType.GROUP_CALL){
@@ -461,7 +499,7 @@ class SignalingManager {
                     }else{
                         //单人视频
                         if (TextUtils.equals(fromCallId, callID)
-                            && callState.value !== CallState.CALL_ANSWERED
+                            && callState.value != CallState.CALL_ANSWERED
                         ) {
                             //发送会话有效消息
                             ringEvent.calleeDevId = calleedDeviceId
@@ -488,8 +526,8 @@ class SignalingManager {
                     // 被叫处理自己设备Id的CALL_CONFIRM_RING
                     if (TextUtils.equals(calledDvId, deviceId)) {
                         stopAlertTimer()
-                        startCommonTimer()
                         if (vaild){
+                            startCommonTimer()
                             //收到callId 有效
                             if (callState.value == CallState.CALL_IDLE) {
                                 callState.value = CallState.CALL_ALERTING
@@ -513,12 +551,13 @@ class SignalingManager {
                                    //使用telecom显示接听界面
                                     TelecomHelper.startCallImmediately(
                                         mContext,
-                                        mContext.getString(R.string.callkit_calling),
-                                        fromUserId
+                                        CallKitClient.cache.getUser(fromUserId)?.getName()?:fromUserId,
+                                        CallKitClient.cache.getUser(fromUserId)?.getName()?:fromUserId,
+                                        callID
                                     )
                                 }else{
                                     // 开始播放铃声
-                                    CallKitClient.audioController.playRing(AudioController.RingType.INCOMING)
+                                    audioController.playRing(AudioController.RingType.INCOMING)
                                     ChatLog.d(TAG, "Playing incoming call ring")
                                     //非锁屏状态
                                     //检查是否有悬浮窗权限
@@ -547,7 +586,7 @@ class SignalingManager {
 
                     stopCommonTimer()
                     //收到的仲裁为自己设备
-                    if (TextUtils.equals(calledDevId, CallKitClient.deviceId)) {
+                    if (TextUtils.equals(calledDevId, deviceId)) {
                         //收到的仲裁为接听
                         if (TextUtils.equals(result, Constant.CALL_ANSWER_ACCEPT)) {
                             callState.value=CallState.CALL_ANSWERED
@@ -578,11 +617,17 @@ class SignalingManager {
                                 callInfo
                             )
                         }
-                        exitChannel()
+                        exitChannel() // 再退出CallKit
                     }
                 }
 
                 CallAction.CALL_ANSWER -> {
+
+                    if (callerDevId!=deviceId){
+                        ChatLog.e(TAG,"receive cmd answerCall, callerDevId: $callerDevId not equals to self deviceId: $deviceId,ignore")
+                        return
+                    }
+
                     val result1 = message.getStringAttribute(Constant.CALL_RESULT, "")
                     val calledDevId1 = message.getStringAttribute(Constant.CALLED_DEVICE_ID, "")
 //                    val transVoice = message.getBooleanAttribute(Constant.CALLED_TRANSE_VOICE, false)
@@ -609,7 +654,11 @@ class SignalingManager {
                                         CallEndReason.CallEndReasonBusy,
                                         callInfo
                                     )
-                                    exitChannel()
+                                    //过一秒再关闭页面
+                                    callKitScope.launch {
+                                        delay(1000)
+                                        exitChannel()
+                                    }
                                 } else {
                                     //让对方空闲端挂断，因为对方多端正在通话
                                     sendCmdMsg(callEvent, fromUserId)
@@ -627,7 +676,7 @@ class SignalingManager {
                             ChatLog.e(TAG, "Received CALL_ANSWER, but not for this device, ignoring")
                         }
                     } else {
-                        if (!TextUtils.equals(fromUser, ChatClient.getInstance().getCurrentUser())) {
+                        if (!TextUtils.equals(fromUser, ChatClient.getInstance().currentUser)) {
 
                             val callEvent = ConfirmCallEvent()
                             callEvent.calleeDevId = calledDevId1
@@ -648,7 +697,7 @@ class SignalingManager {
                                     sendCmdMsg(callEvent, fromUser)
                                 }
                             } else if (TextUtils.equals(result1, Constant.CALL_ANSWER_ACCEPT)) {
-                                CallKitClient.audioController.stopPlayRing()
+                                audioController.stopPlayRing()
                                 //设置为接听
                                 callState.value = CallState.CALL_ANSWERED
                                 sendCmdMsg(callEvent, fromUser)
@@ -661,6 +710,19 @@ class SignalingManager {
                         }else{
                             ChatLog.e(TAG, "Received CALL_ANSWER, but not for this device, ignoring")
                         }
+                    }
+                }
+
+                CallAction.CALL_END -> {
+                    //有人挂断
+                    if ( fromCallId!=callID || callState.value!= CallState.CALL_ANSWERED){
+                        ChatLog.e(TAG, "Received CALL_LEAVE_CALL, but callId does not match  or callState is not ANSWERED, ignoring")
+                        return
+                    }
+                    CallKitClient.cache.getUser(fromUser)?.uid?.let {
+                        rtcManager.onUserOfflineCallBack(it,0)
+                    }?:run{
+                        ChatLog.e(TAG, "handleCallCmdMessage: CallAction.CALL_LEAVE_CALL->user not found for $fromUser")
                     }
                 }
 
@@ -684,15 +746,39 @@ class SignalingManager {
             ChatLog.e(TAG, "Channel name is null, cannot join channel")
         }
     }
-
-    fun sendCmdMsg(event: BaseEvent, toID: String?, customSet:(msg: ChatMessage)->Unit = {}) {
+    /**
+     * \~chinese
+     * 群定向cmd消息
+     *
+     * \~english
+     * Group-oriented cmd messages
+     */
+    internal fun sendCmdMsg(event: BaseEvent, groupId: String, receiverList: MutableList<String>) {
         val message = ChatMessage.createSendMessage(ChatMessageType.CMD)
+        message.chatType= ChatType.GroupChat
+        message.setReceiverList(receiverList)
+        message.to=groupId
+        processSendCmdMsg(event,message)
+    }
+    /**
+     * \~chinese
+     * 单聊cmd消息
+     *
+     * \~english
+     * Single chat cmd messages
+     */
+    internal fun sendCmdMsg(event: BaseEvent, toID: String?) {
+        val message = ChatMessage.createSendMessage(ChatMessageType.CMD)
+        message.to = toID
+        processSendCmdMsg(event,message)
+    }
+    private fun processSendCmdMsg(event: BaseEvent,message: ChatMessage){
         val action = "rtcCall"
         val cmdBody = EMCmdMessageBody(action)
-        message.setTo(toID)
-        customSet(message)
         message.addBody(cmdBody)
-        if (event.callAction == CallAction.CALL_VIDEO_TO_VOICE || event.callAction == CallAction.CALL_CANCEL) {
+        if (event.callAction == CallAction.CALL_CONFIRM_RING
+            || event.callAction == CallAction.CALL_CANCEL
+            || event.callAction == CallAction.CALL_CONFIRM_CALLEE) {
             cmdBody.deliverOnlineOnly(false)
         } else {
             cmdBody.deliverOnlineOnly(true)
@@ -726,6 +812,7 @@ class SignalingManager {
         })
         ChatClient.getInstance().chatManager().sendMessage(message)
     }
+
 
     private fun cmdMessageCallbackOnSuccess(event: BaseEvent) {
         ChatLog.d(TAG, "${event.callAction?.state} send success")
@@ -778,17 +865,6 @@ class SignalingManager {
         }
     }
 
-
-    /**
-     * \~chinese
-     * 检查是否正在监听
-     *
-     * \~english
-     * Check if it is listening
-     */
-    fun isListening(): Boolean = isListening
-
-
     fun sendAnswerMessage() {
         //发送接听消息
         val event = AnswerEvent()
@@ -813,9 +889,8 @@ class SignalingManager {
         val cancelEvent = CallCancelEvent()
         cancelEvent.callId = callID
         if (callType == CallType.GROUP_CALL){
-            inViteUserMap.keys.forEach {
-                sendCmdMsg(cancelEvent,  it)
-            }
+            ChatLog.d(TAG, "sendCancelMessage: group call, sending cancel to all invitees,inViteUserMap:$inViteUserMap")
+            sendCmdMsg(cancelEvent, groupId, inViteUserMap.keys.toMutableList())
         }else{
             sendCmdMsg(cancelEvent,  fromUserId)
         }
@@ -833,6 +908,10 @@ class SignalingManager {
      * @param callType call type
      */
     internal fun sendInviteMsg(userlist: MutableList<String>, callType: CallType) {
+        ChatLog.d(TAG, "sendInviteMsg Sending call invite to users: $userlist with callType: $callType")
+        if (userlist.isEmpty()) {
+            return
+        }
         //开始定时器
         signalingManager.startCommonTimer()
         mConfirm_ring = false
@@ -843,6 +922,7 @@ class SignalingManager {
                 connected=true
                 if (uid==-1) uid=0
             }
+            ChatLog.d(TAG, "sendInviteMsg Current user info: $currentUserInfo")
             if (callType== CallType.GROUP_CALL){
                 //这次加入的新成员
                 val allUseInfos = mutableListOf<CallKitUserInfo>()
@@ -856,7 +936,7 @@ class SignalingManager {
                     it.networkQuality= NetworkQuality.UNKNOWN
                 }
                 allUseInfos.addAll(userInfos)
-
+                ChatLog.d(TAG, "sendInviteMsg Fetched user infos for invitees: $userInfos")
                 //在邀请成员加入场景下还得加入已存在成员
                 val existingParticipants = rtcManager.participants.value
                 existingParticipants.forEach { existingUser ->
@@ -873,7 +953,8 @@ class SignalingManager {
                 }
 
                 rtcManager.setParticipants(allUseInfos)
-                groupInfo = CallKitClient.getCache().getGroupInfoById(CallKitClient.groupId)
+                groupInfo = CallKitClient.getCache().getGroupInfoById(groupId)
+                ChatLog.d(TAG, "sendInviteMsg Compiled complete groupInfo: $groupInfo")
             }
 
             var content: String= mContext.getString(R.string.callkit_inviting_you_to_a_group_call)
@@ -884,7 +965,7 @@ class SignalingManager {
             }
 
             lateinit var message:ChatMessage
-            if (callType== CallType.GROUP_CALL){
+            if (callType == CallType.GROUP_CALL){
                 //使用定向消息解决群视频产生单聊会话的问题
                 message = ChatMessage.createTextSendMessage(content, groupId)
                 message.chatType= ChatType.GroupChat
@@ -911,7 +992,7 @@ class SignalingManager {
                     groupInfoJson.putOpt(Constant.CALL_GROUP_AVATAR, groupInfo?.groupAvatar ?: "")
                     message.setAttribute(Constant.CALL_GROUPINFO, groupInfoJson)
                 } catch (e: Exception){
-                    ChatLog.e(TAG, "Error setting group info: ${e.message}")
+                    ChatLog.e(TAG, "sendInviteMsg Error setting group info: ${e.message}")
                 }
             }
 
@@ -919,13 +1000,16 @@ class SignalingManager {
 
             message.setMessageStatusCallback(object : EMCallBack {
                 override fun onSuccess() {
-                    ChatLog.d(TAG, "Invite call success send to:" + message.to)
-                    //发送邀请信令成功再joinchannel
-                    signalingManager.joinChannel()
-                    audioController.playRing(AudioController.RingType.OUTGOING)
+                    ChatLog.d(TAG, "sendInviteMsg Invite call success send to:" + message.to)
+                    if (callState.value!= CallState.CALL_ANSWERED){
+                        //发送邀请信令成功再joinchannel
+                        signalingManager.joinChannel()
+                        //从邀请页面进来不用再响铃
+                        audioController.playRing(AudioController.RingType.OUTGOING)
+                    }
                 }
                 override fun onError(code: Int, error: String?) {
-                    ChatLog.e(TAG, "Invite call error code:" + code + ",error:" + error + ",to:" + message.to)
+                    ChatLog.e(TAG, "sendInviteMsg Invite call error code:" + code + ",error:" + error + ",to:" + message.to)
                     callKitListener?.onCallError(CallErrorType.IM_ERROR,code, error)
                 }
             })
@@ -950,12 +1034,13 @@ class SignalingManager {
                 val pushExt = JSONObject().putOpt("type", "call")
                 val customExt = JSONObject()
                 addInviteInfoToCustomExt(customExt,callType,message)
+                customExt.putOpt(Constant.CALL_CALLER_NICKNAME, currentUserInfo.nickName)
                 pushExt.putOpt("custom", customExt)
                 val apnsExt = JSONObject().putOpt("em_push_type", "voip")
                 message.setAttribute(Constant.EM_PUSH_EXT,pushExt)
                 message.setAttribute(Constant.EM_APNS_EXT,apnsExt)
             } catch (e: Exception){
-                ChatLog.e(TAG, "Error setting push attributes: ${e.message}")
+                ChatLog.e(TAG, "sendInviteMsg Error setting push attributes: ${e.message}")
             }
             ChatClient.getInstance().chatManager().sendMessage(message)
             //这里是发起方callInfo
@@ -984,17 +1069,18 @@ class SignalingManager {
             try{
                 customExt.putOpt(Constant.MESSAGE_EXT_USER_INFO_KEY, message.getJSONObjectAttribute(Constant.MESSAGE_EXT_USER_INFO_KEY))
             }catch (e: Exception){
-                ChatLog.e(TAG, "Error getting group info from message: ${e.message}")
+                ChatLog.e(TAG, "addInviteInfoToCustomExt Error getting group info from message: ${e.message}")
             }
 
-            } catch (e: Exception) {
-            ChatLog.e(TAG, "Error adding invite info to custom ext: ${e.message}")
+        } catch (e: Exception) {
+            ChatLog.e(TAG, "addInviteInfoToCustomExt Error adding invite info to custom ext: ${e.message}")
             // 抛出异常让调用方处理
-            throw Exception("Failed to create invite custom extension", e)
+            throw Exception("addInviteInfoToCustomExt Failed to create invite custom extension", e)
         }
     }
 
     internal fun updateMessage( callDuration: Long?=0, reason: CallEndReason) {
+//        ChatLog.e(TAG, Log.getStackTraceString(Throwable())) //打印堆栈信息
         ChatLog.e(TAG, "updateMessage outer callMessage: ${callInfo?.inviteMessage} ,callDuration: $callDuration reason: $reason")
         callInfo?.inviteMessage?.let {
             val conversation = ChatClient.getInstance().chatManager().getConversation(
@@ -1031,7 +1117,27 @@ class SignalingManager {
         if (calltype == CallType.GROUP_CALL){
             sendCancelMessage(CallType.GROUP_CALL)
         }
+        sendLeaveCallMessage()
         CallKitClient.exitCall()
+    }
+
+    private fun sendLeaveCallMessage() {
+        if (callState.value== CallState.CALL_ANSWERED){
+            val event = LeaveEvent()
+            event.callId = callID
+            event.callerDevId = callerDevId
+            event.calleeDevId = deviceId
+            event.callAction= CallAction.CALL_END
+            if (callType.value == CallType.GROUP_CALL){
+                //群聊可能还有些人处于呼叫中状态，需要发送cancel信令取消呼叫
+                val receiveList =
+                    rtcManager.participants.value.filter { it.userId != ChatClient.getInstance().currentUser }
+                        .map { it.userId }
+                sendCmdMsg(event,  groupId,receiveList.toMutableList())
+            }else {
+                sendCmdMsg(event, fromUserId)
+            }
+        }
     }
 
     fun cancelCall(calltyp: CallType) {

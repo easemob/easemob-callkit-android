@@ -41,6 +41,8 @@ object Constant {
     const val CALL_INVITE_EXT = "ext"
     const val CALL_GROUPINFO = "callkitGroupInfo"
 
+    const val CALL_CALLER_NICKNAME = "callerNickname"
+
     const val CALL_GROUP_ID = "groupId"
     const val CALL_GROUP_NAME = "groupName"
     const val CALL_GROUP_AVATAR = "groupAvatar"

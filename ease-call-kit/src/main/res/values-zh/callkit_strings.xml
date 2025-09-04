@@ -19,12 +19,12 @@
 
 
     <string name="callkit_flip">翻转</string>
-    <string name="callkit_mike_on">麦克风\n已开</string>
-    <string name="callkit_mike_off">麦克风\n已关</string>
-    <string name="callkit_speaker_on">扬声器\n已开</string>
-    <string name="callkit_speaker_off">扬声器\n已关</string>
-    <string name="callkit_camera_on">摄像头\n已开</string>
-    <string name="callkit_camera_off">摄像头\n已关</string>
+    <string name="callkit_mike_on">麦克风\n开</string>
+    <string name="callkit_mike_off">麦克风\n关</string>
+    <string name="callkit_speaker_on">扬声器\n开</string>
+    <string name="callkit_speaker_off">扬声器\n关</string>
+    <string name="callkit_camera_on">摄像头\n开</string>
+    <string name="callkit_camera_off">摄像头\n关</string>
     <string name="callkit_end">结束</string>
 
     <string name="callkit_inviting_you_to_a_group_call">邀请您进行群通话</string>

@@ -11,14 +11,33 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <FrameLayout
-        android:id="@+id/fl_small"
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/csl_small_container"
         android:layout_width="108dp"
         android:layout_height="192dp"
         android:layout_marginEnd="12dp"
         android:layout_marginTop="118dp"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent" >
+
+        <FrameLayout
+            android:id="@+id/fl_small"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"/>
+
+        <ImageView
+            android:id="@+id/iv_top_remote_mic_mute"
+            app:layout_constraintBottom_toBottomOf="@id/fl_small"
+            app:layout_constraintStart_toStartOf="@id/fl_small"
+            android:src="@drawable/callkit_mic_off_small"
+            android:layout_width="14dp"
+            android:visibility="gone"
+            android:layout_marginBottom="8dp"
+            android:layout_marginStart="8dp"
+            android:layout_height="14dp"/>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+
 
     <include
         android:id="@+id/callkit_titlebar_view"

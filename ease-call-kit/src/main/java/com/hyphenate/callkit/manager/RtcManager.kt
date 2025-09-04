@@ -1,8 +1,8 @@
 package com.hyphenate.callkit.manager
 
 import android.content.Context
+import android.text.TextUtils
 import android.view.TextureView
-import com.hyphenate.chat.EMRTCTokenInfo
 import com.hyphenate.callkit.CallKitClient
 import com.hyphenate.callkit.CallKitClient.CallErrorType
 import com.hyphenate.callkit.CallKitClient.callKitListener
@@ -12,8 +12,8 @@ import com.hyphenate.callkit.CallKitClient.getCurrentUserID
 import com.hyphenate.callkit.CallKitClient.getRtcAppID
 import com.hyphenate.callkit.CallKitClient.getRtcToken
 import com.hyphenate.callkit.CallKitClient.getUserIdByUid
-import com.hyphenate.callkit.CallKitClient.signalingManager
 import com.hyphenate.callkit.CallKitClient.rtcConfigProvider
+import com.hyphenate.callkit.CallKitClient.signalingManager
 import com.hyphenate.callkit.bean.CallEndReason
 import com.hyphenate.callkit.bean.CallKitUserInfo
 import com.hyphenate.callkit.bean.CallType
@@ -22,12 +22,15 @@ import com.hyphenate.callkit.interfaces.getRtcToken
 import com.hyphenate.callkit.utils.ChatLog
 import com.hyphenate.callkit.utils.TimerUtils.startTimer
 import com.hyphenate.callkit.utils.TimerUtils.stopTimer
+import com.hyphenate.chat.EMRTCTokenInfo
 import io.agora.rtc2.ChannelMediaOptions
 import io.agora.rtc2.Constants
 import io.agora.rtc2.IRtcEngineEventHandler
 import io.agora.rtc2.RtcEngine
 import io.agora.rtc2.video.VideoCanvas
 import io.agora.rtc2.video.VideoEncoderConfiguration
+import io.agora.rtc2.video.VideoEncoderConfiguration.VD_1280x720
+import io.agora.rtc2.video.VideoEncoderConfiguration.VideoDimensions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,7 +38,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.apply
+
 
 /**
  * \~chinese
@@ -126,12 +129,8 @@ class RtcManager {
         override fun onUserJoined(uid: Int, elapsed: Int) {
             super.onUserJoined(uid, elapsed)
             ChatLog.d(TAG, "User joined: uid=$uid")
-
-            rtcEngine?.adjustUserPlaybackSignalVolume(uid,150)
-
             // 添加远程用户到参与者列表
             addRemoteUserToParticipants(uid)
-
             if (callType.value != CallType.GROUP_CALL){
                 _isLocalShowInBigView.value = false
                 startAnsweringTimer()
@@ -141,41 +140,7 @@ class RtcManager {
         override fun onUserOffline(uid: Int, reason: Int) {
             super.onUserOffline(uid, reason)
             ChatLog.d(TAG, "User offline: uid=$uid, reason=$reason")
-
-            CallKitClient.callKitScope.launch {
-                // 从参与者列表中移除用户
-                removeUserFromParticipants(uid)
-
-                val userId = getUserIdByUid(uid)
-
-                if (callType.value == CallType.GROUP_CALL) {
-                    // 多人通话中，只有当所有人都离开时才结束通话
-                    if (_participants.value.size <= 0) {
-                        signalingManager.updateMessage(connectedTime.value,  CallEndReason.CallEndReasonHangup)
-                        callKitListener?.onEndCallWithReason(
-                            CallEndReason.CallEndReasonHangup,
-                            signalingManager.callInfo
-                        )
-                        CallKitClient.exitCall()
-                    }else{
-                        // 仍有其他用户在线，继续通话
-                        callKitListener?.onRemoteUserLeft(userId?:"", callType.value, channelName?:"")
-                    }
-                } else {
-                    // 1v1通话，对方离开就结束通话
-                    var reasonVar=if (reason== Constants.USER_OFFLINE_DROPPED) {
-                        CallEndReason.CallEndReasonRemoteDrop
-                    } else {
-                        CallEndReason.CallEndReasonHangup
-                    }
-                    signalingManager.updateMessage(connectedTime.value,  reasonVar)
-                    callKitListener?.onEndCallWithReason(
-                        reasonVar,
-                        signalingManager.callInfo
-                    )
-                    CallKitClient.exitCall()
-                }
-            }
+            onUserOfflineCallBack(uid,reason)
         }
 
         override fun onRemoteVideoStateChanged(uid: Int, state: Int, reason: Int, elapsed: Int) {
@@ -218,18 +183,22 @@ class RtcManager {
             // 更新参与者的音频状态
             updateParticipantAudioState(uid, audioEnabled)
 
-            if (callType.value!= CallType.GROUP_CALL) {
-                _remoteMicMute.value = !audioEnabled
-            }
-
             ChatLog.d(TAG, "Remote audio state changed: uid=$uid, state=$state, reason=$reason")
+        }
+
+        override fun onUserMuteAudio(uid: Int, muted: Boolean) {
+            super.onUserMuteAudio(uid, muted)
+            if (callType.value!= CallType.GROUP_CALL) {
+                ChatLog.d(TAG,"_remoteMicMute.value="+_remoteMicMute.value+",onUserMuteAudio muted=$muted")
+                _remoteMicMute.value = muted
+            }
         }
 
         override fun onLeaveChannel(stats: RtcStats?) {
             super.onLeaveChannel(stats)
             ChatLog.d(TAG, "Leave channel")
             // 清空参与者列表
-            _participants.value = emptyList()
+            clearParticipants()
         }
 
 
@@ -287,7 +256,6 @@ class RtcManager {
                 }
             }
         }
-
     }
 
     internal fun init(context: Context){
@@ -299,6 +267,50 @@ class RtcManager {
                     CallKitClient.floatWindow.showFloatWindow()
                 }
             }
+        }
+    }
+    @Synchronized
+    private fun doAddRemoteUserToParticipants(userInfo: CallKitUserInfo) {
+        callKitListener?.onRemoteUserJoined(userInfo.userId, callType.value, channelName ?: "")
+        val currentParticipants = _participants.value.toMutableList()
+        // 检查是否已存在，避免重复添加
+        val existingIndex = currentParticipants.indexOfFirst { it.userId == userInfo.userId }
+        if (existingIndex >= 0) {
+            currentParticipants[existingIndex] = userInfo
+        } else {
+            currentParticipants.add(userInfo)
+        }
+        _participants.value = currentParticipants
+        ChatLog.d(TAG, "Added remote user to participants:$userInfo")
+    }
+
+    @Synchronized
+    internal fun onUserOfflineCallBack(uid: Int, reason: Int) {
+        // 从参与者列表中移除用户
+        if(!removeUserFromParticipants(uid)){
+            return
+        }
+        if (callType.value == CallType.GROUP_CALL) {
+            val userId = CallKitClient.cache.getUser(uid)?.userId
+            if (TextUtils.isEmpty(userId)){
+                ChatLog.e(TAG, "onUserOfflineCallBack: userId is null for uid=$uid")
+                return
+            }
+            callKitListener?.onRemoteUserLeft(userId?:"", callType.value, channelName?:"")
+
+        } else {
+            // 1v1通话，对方离开就结束通话
+            val reasonVar=if (reason== Constants.USER_OFFLINE_DROPPED) {
+                CallEndReason.CallEndReasonRemoteDrop
+            } else {
+                CallEndReason.CallEndReasonHangup
+            }
+            signalingManager.updateMessage(connectedTime.value,  reasonVar)
+            callKitListener?.onEndCallWithReason(
+                reasonVar,
+                signalingManager.callInfo
+            )
+            CallKitClient.exitCall()
         }
     }
 
@@ -313,48 +325,40 @@ class RtcManager {
             localUserInfo.isVideoEnabled = !localVideoMute.value // 默认开启
             localUserInfo.isMicEnabled = !localMicMute.value   // 默认开启
             localUserInfo.connected = true      // 远端用户加入频道成功时设置为true
-
-            val currentParticipants = _participants.value.toMutableList()
-            // 检查是否已存在，避免重复添加
-            val existingIndex = currentParticipants.indexOfFirst { it.uid == uid || it.uid == 0 }
-            if (existingIndex >= 0) {
-                currentParticipants[existingIndex] = localUserInfo
-            } else {
-                currentParticipants.add(localUserInfo)
-            }
-            _participants.value = currentParticipants
-            ChatLog.d(TAG, "Added local user to participants: uid=$uid, userId=${localUserInfo.userId}")
-
+            localUserInfo.networkQuality= NetworkQuality.GOOD
+            doAddLocalUserToParticipants(localUserInfo)
         }
+    }
+    @Synchronized
+    private fun doAddLocalUserToParticipants(localUserInfo: CallKitUserInfo){
+        val currentParticipants = _participants.value.toMutableList()
+        // 检查是否已存在，避免重复添加
+        val existingIndex = currentParticipants.indexOfFirst { it.uid == localUserInfo.uid || it.uid == 0 }
+        if (existingIndex >= 0) {
+            currentParticipants[existingIndex] = localUserInfo
+        } else {
+            currentParticipants.add(localUserInfo)
+        }
+        _participants.value = currentParticipants
+        ChatLog.d(TAG, "Added local user to participants: uid=${localUserInfo.uid}, userId=${localUserInfo.userId}")
     }
 
     /**
      * 添加远程用户到参与者列表
      */
-    internal fun addRemoteUserToParticipants(uid: Int=0) {
+    private fun addRemoteUserToParticipants(uid: Int=0) {
         CallKitClient.callKitScope.launch {
             val userId = getUserIdByUid(uid)
-            callKitListener?.onRemoteUserJoined(userId?:"",callType.value, channelName?:"")
             if (userId != null) {
                 // 尝试从缓存或用户提供者获取用户信息
                 val userInfo = CallKitClient.getCache().getUserInfoById(userId)
-
                 userInfo.uid = uid
                 userInfo.isVideoEnabled = if (callType.value == CallType.GROUP_CALL) false else true
                 userInfo.isMicEnabled = true   // 默认开启
                 userInfo.connected = true      // 远端用户加入频道成功时设置为true
-
-
-                val currentParticipants = _participants.value.toMutableList()
-                // 检查是否已存在，避免重复添加
-                val existingIndex = currentParticipants.indexOfFirst { it.userId == userId }
-                if (existingIndex >= 0) {
-                    currentParticipants[existingIndex] = userInfo
-                } else {
-                    currentParticipants.add(userInfo)
-                }
-                _participants.value = currentParticipants
-                ChatLog.d(TAG, "Added remote user to participants:$userInfo")
+                doAddRemoteUserToParticipants(userInfo)
+            }else{
+                ChatLog.e(TAG,"addRemoteUserToParticipants userId = null")
             }
         }
     }
@@ -362,12 +366,18 @@ class RtcManager {
     /**
      * 从参与者列表中移除用户
      */
-    internal fun removeUserFromParticipants(uid: Int) {
+    @Synchronized
+    internal fun removeUserFromParticipants(uid: Int) : Boolean{
         val currentParticipants = _participants.value.toMutableList()
         val removedUser = currentParticipants.find { it.uid == uid }
+        if (removedUser == null) {
+            ChatLog.e(TAG, "User to remove not found in participants: uid=$uid")
+            return false
+        }
         currentParticipants.removeAll { it.uid == uid }
         _participants.value = currentParticipants
         ChatLog.d(TAG, "Removed user from participants: uid=$uid, userId=${removedUser?.userId}")
+        return true
     }
 
     /**
@@ -377,20 +387,25 @@ class RtcManager {
         ChatLog.d(TAG, "updateParticipantVideoState: uid=$uid, enabled=$enabled")
         CallKitClient.callKitScope.launch {
             val userId = getUserIdByUid(uid)
-            val currentParticipants = _participants.value.toMutableList()
-            ChatLog.d(TAG, "Current participants before update: ${currentParticipants}")
-            val index = currentParticipants.indexOfFirst { it.userId == userId }
-            if (index >= 0) {
-                currentParticipants[index] = currentParticipants[index].copy(isVideoEnabled = enabled, uid = uid, connected = true)
-                _participants.value = currentParticipants
-                ChatLog.d(TAG, "Current participants after update: ${currentParticipants}")
-            }
+            doUpdateParticipantVideoState(userId,uid,enabled)
+        }
+    }
+    @Synchronized
+    private fun doUpdateParticipantVideoState(userId:String?,uid: Int, enabled: Boolean){
+        val currentParticipants = _participants.value.toMutableList()
+        ChatLog.d(TAG, "Current participants before update: ${currentParticipants}")
+        val index = currentParticipants.indexOfFirst { it.userId == userId }
+        if (index >= 0) {
+            currentParticipants[index] = currentParticipants[index].copy(isVideoEnabled = enabled, uid = uid, connected = true)
+            _participants.value = currentParticipants
+            ChatLog.d(TAG, "Current participants after update: ${currentParticipants}")
         }
     }
 
     /**
      * 更新参与者的音频状态
      */
+    @Synchronized
     private fun updateParticipantAudioState(uid: Int, enabled: Boolean) {
         val currentParticipants = _participants.value.toMutableList()
         val index = currentParticipants.indexOfFirst { it.uid == uid }
@@ -407,19 +422,21 @@ class RtcManager {
     /**
      * 更新参与者的说话状态
      */
+    @Synchronized
     private fun updateParticipantSpeakingState(uid: Int, speaking: Boolean) {
         val currentParticipants = _participants.value.toMutableList()
         val index = currentParticipants.indexOfFirst { it.uid == uid }
         if (index >= 0) {
             currentParticipants[index] = currentParticipants[index].copy(isSpeaking = speaking)
             _participants.value = currentParticipants
-            ChatLog.v(TAG, "Updated speaking state for uid=$uid, speaking=$speaking")
+//            ChatLog.v(TAG, "Updated speaking state for uid=$uid, speaking=$speaking")
         }
     }
 
     /**
      * 更新参与者的网络质量
      */
+    @Synchronized
     private fun updateParticipantNetworkQuality(uid: Int, quality: NetworkQuality) {
         val currentParticipants = _participants.value.toMutableList()
         val index = currentParticipants.indexOfFirst { it.uid == uid }
@@ -487,6 +504,7 @@ class RtcManager {
         rtcEngine?.setChannelProfile(Constants.CHANNEL_PROFILE_LIVE_BROADCASTING)
         rtcEngine?.setClientRole(Constants.CLIENT_ROLE_BROADCASTER)
         rtcEngine?.enableInEarMonitoring(true)
+        rtcEngine?.adjustRecordingSignalVolume(200)
         callKitListener?.onRtcEngineCreated(rtcEngine!!)
         //避免音频状态时部分机型摄像头弹起
         if (callType.value != CallType.SINGLE_VOICE_CALL){
@@ -501,15 +519,12 @@ class RtcManager {
                 // 启用音量指示器（用于多人通话）
                 rtcEngine?.enableAudioVolumeIndication(500, 3, false)
             }
-            rtcEngine?.setVideoEncoderConfiguration(
-                VideoEncoderConfiguration(
-                    VideoEncoderConfiguration.VD_1920x1080,
-                    VideoEncoderConfiguration.FRAME_RATE.FRAME_RATE_FPS_30,
-                    VideoEncoderConfiguration.STANDARD_BITRATE,
-                    VideoEncoderConfiguration.ORIENTATION_MODE.ORIENTATION_MODE_FIXED_PORTRAIT
-                )
-            )
-            rtcEngine?.setRemoteDefaultVideoStreamType(Constants.VideoStreamType.VIDEO_STREAM_LOW)
+            //配置
+            val configuration=  VideoEncoderConfiguration()
+            configuration.orientationMode=VideoEncoderConfiguration.ORIENTATION_MODE.ORIENTATION_MODE_FIXED_PORTRAIT
+            configuration.dimensions= VD_1280x720
+            configuration.frameRate = VideoEncoderConfiguration.FRAME_RATE.FRAME_RATE_FPS_30.value
+            rtcEngine?.setVideoEncoderConfiguration(configuration)
         }
         ChatLog.d(TAG, "RTC engine initialized successfully")
     }
@@ -562,16 +577,21 @@ class RtcManager {
         initializeEngine()
         CallKitClient.callKitScope.launch {
                 getToken()?.let {
-                val result = when {
-                    !userAccount.isNullOrEmpty() -> rtcEngine!!.joinChannelWithUserAccount(
-                        it.rtcToken,
-                        channelName,
-                        userAccount
-                    )
-                    else -> rtcEngine!!.joinChannel(it.rtcToken, channelName, null, it.uid)
-                }
-                    ChatLog.d(TAG, "Joining channel: $channelName" + ", userAccount=$userAccount, uid=${it.uid},result=$result")
-            }?:run {
+                    rtcEngine?.let { engine ->
+                        val result = when {
+                            !userAccount.isNullOrEmpty() -> engine.joinChannelWithUserAccount(
+                                it.rtcToken,
+                                channelName,
+                                userAccount
+                            )
+                            else -> engine.joinChannel(it.rtcToken, channelName, null, it.uid)
+                        }
+                        ChatLog.d(TAG, "Joining channel: $channelName" + ", userAccount=$userAccount, uid=${it.uid},result=$result")
+
+                    }?:run{
+                        ChatLog.e(TAG, "joinChannel rtcEngine is null")
+                    }
+                }?:run {
                 ChatLog.e(TAG, "Failed to get RTC token for channel: $channelName")
                 callKitListener?.onCallError(CallErrorType.RTC_ERROR,0, "Failed to get RTC token")
                 CallKitClient.exitCall()
@@ -645,31 +665,20 @@ class RtcManager {
                 if (callType.value == CallType.SINGLE_VIDEO_CALL ||
                     callType.value == CallType.GROUP_CALL) {
 
-                    // 1. 设置非常低的视频编码配置以节省CPU和网络
+                    //  设置非常低的视频编码配置以节省CPU和网络
                     engine.setVideoEncoderConfiguration(
                         VideoEncoderConfiguration(
                             VideoEncoderConfiguration.VD_640x480,
-                            VideoEncoderConfiguration.FRAME_RATE.FRAME_RATE_FPS_10,
+                            VideoEncoderConfiguration.FRAME_RATE.FRAME_RATE_FPS_15,
                             VideoEncoderConfiguration.STANDARD_BITRATE,
                             VideoEncoderConfiguration.ORIENTATION_MODE.ORIENTATION_MODE_FIXED_PORTRAIT
                         )
                     )
-                    // 2. 发送小流
-                    engine.setDualStreamMode(Constants.SimulcastStreamMode.ENABLE_SIMULCAST_STREAM)
-                    // 3. 设置订阅流的类型为低流（如果是接收方）
-                    if (callType.value== CallType.SINGLE_VIDEO_CALL){
-                        engine.setRemoteVideoStreamType(_remoteUid.value, Constants.VideoStreamType.VIDEO_STREAM_LOW)
-                    }else{
-                        participants.value.filter { it.userId!= getCurrentUserID() }.forEach {
-                            engine.setRemoteVideoStreamType(it.uid, Constants.VideoStreamType.VIDEO_STREAM_LOW)
-                        }
-                    }
                     ChatLog.d(TAG, "Applied aggressive optimization for background video mode")
                 } else {
                     ChatLog.d(TAG, "Applied optimization for background voice mode")
                 }
 
-                // 5. 启用回声消除和噪声抑制（降低CPU使用）
                 engine.enableLocalAudio(true)
                 engine.setParameters("{\"che.audio.enable.agc\":false}")  // 关闭自动增益控制节省CPU
 
@@ -696,17 +705,12 @@ class RtcManager {
 
                 // 对于视频通话，恢复正常视频质量
                 if (callType.value != CallType.SINGLE_VOICE_CALL) {
-                    // 1. 恢复正常的视频编码配置
-                    engine.setVideoEncoderConfiguration(
-                        VideoEncoderConfiguration(
-                            if (callType.value== CallType.GROUP_CALL)
-                                VideoEncoderConfiguration.VD_640x360 else VideoEncoderConfiguration.VD_1920x1080,
-                            VideoEncoderConfiguration.FRAME_RATE.FRAME_RATE_FPS_30,
-                            VideoEncoderConfiguration.STANDARD_BITRATE,
-                            VideoEncoderConfiguration.ORIENTATION_MODE.ORIENTATION_MODE_FIXED_PORTRAIT
-                        )
-                    )
-
+                    // 1. 配置
+                    val configuration=  VideoEncoderConfiguration()
+                    configuration.orientationMode=VideoEncoderConfiguration.ORIENTATION_MODE.ORIENTATION_MODE_FIXED_PORTRAIT
+                    configuration.dimensions= VD_1280x720
+                    configuration.frameRate = VideoEncoderConfiguration.FRAME_RATE.FRAME_RATE_FPS_30.value
+                    rtcEngine?.setVideoEncoderConfiguration(configuration)
                     // 2. 恢复高质量流订阅
                     if (callType.value== CallType.SINGLE_VIDEO_CALL){
                         engine.setDualStreamMode(Constants.SimulcastStreamMode.AUTO_SIMULCAST_STREAM)
@@ -775,21 +779,6 @@ class RtcManager {
         updateLocalVideoState(!mute)
         ChatLog.d(TAG, "setLocalVideoMute: $mute")
     }
-    /**
-     * \~chinese
-     * 设置本地麦克风是否开启
-     *
-     * \~english
-     * Set local microphone mute
-     */
-    fun setLocalMicMute(mute: Boolean) {
-        if (mute == localMicMute.value) return
-        _localMicMute.value = mute
-        rtcEngine?.muteLocalVideoStream(mute)
-        // 更新participants中本地用户的视频状态
-        updateLocalAudioState(!mute)
-        ChatLog.d(TAG, "setLocalVideoMute: $mute")
-    }
 
     /**
      * \~chinese
@@ -800,7 +789,7 @@ class RtcManager {
      */
     fun changeMicStatus() {
         ChatLog.e(TAG, "changeMicStatus: muteLocalAudioStream ${_localMicMute.value}")
-        rtcEngine?.muteLocalAudioStream(!localMicMute.value)
+        rtcEngine?.enableLocalAudio(localMicMute.value)
         _localMicMute.value = !_localMicMute.value
         // 更新participants中本地用户的音频状态
         updateLocalAudioState(!_localMicMute.value)
@@ -824,6 +813,7 @@ class RtcManager {
      * \~english
      * Set participants list
      */
+    @Synchronized
     fun setParticipants(participants: List<CallKitUserInfo>) {
         _participants.value = participants
         ChatLog.d(TAG, "Set participants: $participants")
@@ -836,10 +826,16 @@ class RtcManager {
      * \~english
      * Remove participant
      */
+    @Synchronized
     fun removeParticipant(userId: String?) {
         val currentParticipants = _participants.value.toMutableList()
         currentParticipants.removeAll { it.userId == userId }
         _participants.value = currentParticipants
+    }
+
+    @Synchronized
+    private fun clearParticipants() {
+        _participants.value = emptyList()
     }
 
 
@@ -883,6 +879,6 @@ class RtcManager {
         _isLocalShowInBigView.value=true
         _remoteVideoMute.value=true
         _remoteMicMute.value=false
-        _participants.value = emptyList()
+        clearParticipants()
     }
 }

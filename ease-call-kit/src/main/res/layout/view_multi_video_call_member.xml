@@ -6,18 +6,17 @@
     android:layout_height="match_parent"
     android:background="@drawable/shape_rectangle_conner_12">
 
-    <!-- 视频容器 -->
-    <TextureView
-        android:id="@+id/texture_view"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
-
     <ImageView
         android:id="@+id/avatar_image"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="fitCenter"
         android:src="@drawable/callkit_video_default" />
+
+    <TextureView
+        android:id="@+id/texture_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/csl_connecting"
@@ -41,14 +40,14 @@
     <LinearLayout
         android:id="@+id/ll_container"
         android:layout_width="wrap_content"
-        android:layout_height="22dp"
+        android:layout_height="16dp"
         android:layout_marginStart="6dp"
         android:layout_marginBottom="6dp"
         android:background="@drawable/shape_rectangle_bg_80000000_conner_6"
         android:gravity="center"
-        android:orientation="horizontal"
         android:paddingStart="2dp"
         android:paddingEnd="2dp"
+        android:orientation="horizontal"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
@@ -57,28 +56,33 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center"
-            android:layout_marginStart="6dp"
+            android:layout_marginStart="2dp"
             android:textColor="@color/callkit_neutral_98"
-            android:textSize="11sp"
+            android:textSize="10sp"
+            android:layout_marginEnd="2dp"
+            android:visibility="visible"
             tools:text="username" />
 
         <com.hyphenate.callkit.widget.CallKitImageView
             android:id="@+id/mic_status"
-            android:layout_width="14dp"
-            android:layout_height="14dp"
-            android:layout_marginStart="4dp"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
             android:src="@drawable/callkit_mic_off_small"
             app:shape_type="rectangle"
+            android:layout_marginStart="2dp"
+            android:layout_marginEnd="2dp"
+            android:visibility="visible"
             app:layout_constraintBottom_toBottomOf="@id/tv_name"
             app:layout_constraintStart_toEndOf="@id/tv_name"
             app:layout_constraintTop_toTopOf="@id/tv_name" />
 
         <com.hyphenate.callkit.widget.CallKitImageView
             android:id="@+id/speaking_indicator"
-            android:layout_width="14dp"
-            android:layout_height="14dp"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:visibility="visible"
+            android:layout_marginStart="2dp"
+            android:layout_marginEnd="2dp"
             android:src="@drawable/callkit_speaker_wave"
             app:shape_type="rectangle"
             app:layout_constraintBottom_toBottomOf="@id/tv_name"
@@ -96,7 +100,7 @@
         android:background="@drawable/shape_rectangle_bg_80000000_conner_6"
         android:padding="2dp"
         android:src="@drawable/callkit_network_good"
-        android:visibility="gone"
+        android:visibility="visible"
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 

@@ -1,9 +1,10 @@
 group = "io.hyphenate"
-archivesBaseName = "ease-call-kit"
+archivesBaseName = "chat-call-kit"
 version = project.sdkVersion//发布aar的库版本
 
 apply {
     plugin 'com.vanniktech.maven.publish'
+    plugin 'org.jetbrains.dokka'
 }
 
 mavenPublishing {
