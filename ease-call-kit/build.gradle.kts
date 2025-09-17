@@ -58,7 +58,7 @@ dependencies {
     implementation("io.github.scwang90:refresh-footer-classics:3.0.0-alpha")
 
     // 集成 lite SDK
-    api("io.agora.rtc:lite-sdk:4.5.1")
+    api("io.agora.rtc:lite-sdk:4.6.0")
 
     api("io.hyphenate:hyphenate-chat:4.16.0")
 //    implementation(project(mapOf("path" to ":hyphenatechatsdk")))
