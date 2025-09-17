@@ -2,19 +2,12 @@ package com.hyphenate.callkit.global
 
 import android.app.Activity
 import android.app.Application
-import android.content.Intent
-import android.nfc.Tag
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper.getMainLooper
-import android.util.Log
 import com.hyphenate.callkit.CallKitClient
 import com.hyphenate.callkit.bean.CallState
-import com.hyphenate.callkit.manager.FloatWindow
 import com.hyphenate.callkit.ui.MultiCallActivity
 import com.hyphenate.callkit.ui.SingleCallActivity
 import com.hyphenate.callkit.utils.ChatLog
-import com.hyphenate.push.platform.normal.a.f
 
 class CallKitActivityLifecycleCallback: Application.ActivityLifecycleCallbacks{
     private val TAG = "CallKit ActivityLifecycle"
