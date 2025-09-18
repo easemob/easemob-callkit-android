@@ -324,8 +324,12 @@ class CallKitNotifier(private val context: Context) {
             }
             
             val notification = builder.build()
-            notificationManagerCompat.notify(NOTIFY_ID, notification)
-            
+            if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED){
+                notificationManagerCompat.notify(NOTIFY_ID, notification)
+            }else{
+                EMLog.e(TAG, "Lack of POST_NOTIFICATIONS permission, cannot show notification")
+            }
+
             // 播放铃声和震动（Android 8.0以下）
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
                 vibrateAndPlayTone(message)
