@@ -191,14 +191,14 @@ class IncomingCallTopWindow {
 
             // 使用属性动画
             val translationAnimator = ObjectAnimator.ofFloat(
-                view, "translationY", -view.height.toFloat(), 0f
+                view, View.TRANSLATION_Y, -view.height.toFloat(), 0f
             ).apply {
                 duration = 400 // 动画持续时间400ms
                 interpolator = DecelerateInterpolator() // 减速插值器，让动画逐渐减慢
             }
 
             val alphaAnimator = ObjectAnimator.ofFloat(
-                view, "alpha", 0.0f, 1.0f
+                view, View.ALPHA, 0.0f, 1.0f
             ).apply {
                 duration = 400
                 interpolator = DecelerateInterpolator()
@@ -285,14 +285,14 @@ class IncomingCallTopWindow {
 
             // 使用属性动画代替View动画，更可靠
             val translationAnimator = ObjectAnimator.ofFloat(
-                view, "translationY", 0f, -view.height.toFloat()
+                view, View.TRANSLATION_Y, 0f, -view.height.toFloat()
             ).apply {
                 duration = 300
                 interpolator = AccelerateInterpolator()
             }
 
             val alphaAnimator = ObjectAnimator.ofFloat(
-                view, "alpha", 1.0f, 0.0f
+                view, View.ALPHA, 1.0f, 0.0f
             ).apply {
                 duration = 300
                 interpolator = AccelerateInterpolator()

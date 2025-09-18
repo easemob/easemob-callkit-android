@@ -380,7 +380,7 @@ class MultiVideoCallGridLayout @JvmOverloads constructor(
             if (child != bottomScrollView) {
                 // 保存原始位置
 //                child.tag = Rect(child.left, child.top, child.right, child.bottom)
-                val alpha = ObjectAnimator.ofFloat(child, "alpha", 1f, 0f)
+                val alpha = ObjectAnimator.ofFloat(child, View.ALPHA, 1f, 0f)
                 animators.add(alpha)
             }
         }
@@ -427,9 +427,9 @@ class MultiVideoCallGridLayout @JvmOverloads constructor(
         val animators = mutableListOf<Animator>()
         // 主视图缩放动画
         originalViews.forEach { view ->
-//            val scaleX = ObjectAnimator.ofFloat(view, "scaleX", 1f, 0.8f, 1f)
-//            val scaleY = ObjectAnimator.ofFloat(view, "scaleY", 1f, 0.8f, 1f)
-            val alpha = ObjectAnimator.ofFloat(view, "alpha", 1f, 0f)
+//            val scaleX = ObjectAnimator.ofFloat(view, View.SCALE_X, 1f, 0.8f, 1f)
+//            val scaleY = ObjectAnimator.ofFloat(view, View.SCALE_Y, 1f, 0.8f, 1f)
+            val alpha = ObjectAnimator.ofFloat(view, View.ALPHA, 1f, 0f)
             animators.addAll(listOf(alpha))
         }
         val animatorSet = AnimatorSet()
@@ -487,14 +487,14 @@ class MultiVideoCallGridLayout @JvmOverloads constructor(
         val animators = mutableListOf<Animator>()
         
         // 平移动画
-        val translationX = ObjectAnimator.ofFloat(newFocusView, "translationX", 0f, deltaX)
-        val translationY = ObjectAnimator.ofFloat(newFocusView, "translationY", 0f, deltaY)
+        val translationX = ObjectAnimator.ofFloat(newFocusView, View.TRANSLATION_X, 0f, deltaX)
+        val translationY = ObjectAnimator.ofFloat(newFocusView, View.TRANSLATION_Y, 0f, deltaY)
         
         // 缩放动画（以左下角为原点）
-        val scaleXAnimator = ObjectAnimator.ofFloat(newFocusView, "scaleX", 1f, scaleX)
-        val scaleYAnimator = ObjectAnimator.ofFloat(newFocusView, "scaleY", 1f, scaleY)
+        val scaleXAnimator = ObjectAnimator.ofFloat(newFocusView, View.SCALE_X, 1f, scaleX)
+        val scaleYAnimator = ObjectAnimator.ofFloat(newFocusView, View.SCALE_Y, 1f, scaleY)
 
-//        val alphaAnimator = ObjectAnimator.ofFloat(newFocusView, "alpha", 1f, 0f)
+//        val alphaAnimator = ObjectAnimator.ofFloat(newFocusView, View.ALPHA, 1f, 0f)
         
         animators.addAll(listOf(translationX, translationY, scaleXAnimator, scaleYAnimator))
         
@@ -523,11 +523,11 @@ class MultiVideoCallGridLayout @JvmOverloads constructor(
             oldView.pivotY = oldView.height.toFloat()
             
             // oldView的动画
-            val oldTranslationX = ObjectAnimator.ofFloat(oldView, "translationX", 0f, oldDeltaX)
-            val oldTranslationY = ObjectAnimator.ofFloat(oldView, "translationY", 0f, oldDeltaY)
-            val oldScaleXAnimator = ObjectAnimator.ofFloat(oldView, "scaleX", 1f, oldScaleX)
-            val oldScaleYAnimator = ObjectAnimator.ofFloat(oldView, "scaleY", 1f, oldScaleY)
-            val oldAlphaAnimator = ObjectAnimator.ofFloat(oldView, "alpha", 0f, 1f)
+            val oldTranslationX = ObjectAnimator.ofFloat(oldView, View.TRANSLATION_X, 0f, oldDeltaX)
+            val oldTranslationY = ObjectAnimator.ofFloat(oldView, View.TRANSLATION_Y, 0f, oldDeltaY)
+            val oldScaleXAnimator = ObjectAnimator.ofFloat(oldView, View.SCALE_X, 1f, oldScaleX)
+            val oldScaleYAnimator = ObjectAnimator.ofFloat(oldView, View.SCALE_Y, 1f, oldScaleY)
+            val oldAlphaAnimator = ObjectAnimator.ofFloat(oldView, View.ALPHA, 0f, 1f)
             
             animators.addAll(listOf(oldTranslationX, oldTranslationY, oldScaleXAnimator, oldScaleYAnimator, oldAlphaAnimator))
             
