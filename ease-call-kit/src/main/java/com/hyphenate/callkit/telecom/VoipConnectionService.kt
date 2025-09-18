@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.telecom.Connection
 import android.telecom.ConnectionRequest
@@ -12,6 +13,7 @@ import android.telecom.ConnectionService
 import android.telecom.DisconnectCause
 import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import com.hyphenate.callkit.CallKitClient
 import com.hyphenate.callkit.telecom.IncomingCallService.Companion.EXTRA_CALLER_DISPLAY_NAME_COMPAT
@@ -87,7 +89,6 @@ class VoipConnectionService : ConnectionService() {
             setRinging() // 设置状态为响铃
         }
     }
-
     private fun createConnection(callerId: String, callerName: String, callId: String): Connection {
         return object : Connection() {
             init {
@@ -105,7 +106,15 @@ class VoipConnectionService : ConnectionService() {
                 val extras = Bundle().apply {
                     putString("call_id", callId)
                 }
-                putExtras(extras)
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
+                    putExtras(extras)
+                } else {
+                    // API level 24 及以下版本不支持 putExtras 方法
+                    // call_id 信息已在其他地方可用，此处无需额外处理
+                    ChatLog.d(TAG, "putExtras not supported on API level ${Build.VERSION.SDK_INT}, call_id: $callId")
+                }
+
             }
 
             override fun onAnswer() {
