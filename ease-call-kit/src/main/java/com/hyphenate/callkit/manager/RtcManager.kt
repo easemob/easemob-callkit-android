@@ -629,6 +629,10 @@ class RtcManager {
      * Switch camera
      */
     fun switchCamera() {
+        if (localVideoMute.value){
+            ChatLog.e(TAG, "switchCamera: local video is muted, cannot switch camera")
+            return
+        }
         _isFrontCamera.value = !_isFrontCamera.value
         rtcEngine?.switchCamera()
     }
