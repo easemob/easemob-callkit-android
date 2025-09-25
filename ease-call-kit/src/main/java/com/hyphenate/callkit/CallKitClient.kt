@@ -425,8 +425,13 @@ object CallKitClient {
         return ChatClient.getInstance().currentUser
     }
 
-    internal fun getRtcAppID(): String {
-        return ChatClient.getInstance().options.appId
+    internal fun getRtcAppID(): String? {
+        val options = ChatClient.getInstance().options
+        if (options==null){
+            ChatLog.e(TAG, "getRtcAppID() options is null,was sdk inited?")
+           return null
+        }
+        return options.appId
     }
 
     internal suspend fun getRtcToken(channelName_p: String?): RTCTokenInfo? {
