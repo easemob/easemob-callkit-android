@@ -569,7 +569,8 @@ class SignalingManager {
                                         startSendEvent()
                                     }
                                 }
-
+                                // 通话邀请回调
+                                callKitListener?.onReceivedCall(fromUserId,callType.value,  inviteExt)
                             } else {
                                 //通话无效
                                 ChatLog.e(TAG, "Received CALL_CONFIRM_RING ,but callState is not idle, ignoring")

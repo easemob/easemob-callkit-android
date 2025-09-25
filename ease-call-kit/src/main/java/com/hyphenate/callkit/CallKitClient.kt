@@ -270,8 +270,6 @@ object CallKitClient {
                 notifier.notify(info)
             }
         }
-        // 通话邀请回调
-        callKitListener?.onReceivedCall(fromUserId,callType.value,  inviteExt)
     }
 
 
