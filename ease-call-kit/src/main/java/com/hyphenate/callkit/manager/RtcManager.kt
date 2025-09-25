@@ -488,16 +488,18 @@ class RtcManager {
      * Initialize RTC engine
      */
     @Synchronized
-    internal fun initializeEngine() {
+    internal fun initializeEngine(): Boolean{
 
-        if (rtcEngine!=null) return
+        if (rtcEngine!=null){
+            return true
+        }
         val agoraAppId = rtcConfigProvider?.onSyncGetAppId()?:getRtcAppID()
 
         if (agoraAppId.isNullOrEmpty()){
             ChatLog.e(TAG, "Agora App ID is null or empty")
             callKitListener?.onCallError(CallErrorType.IM_ERROR, 0, "Agora App ID is null or empty")
             CallKitClient.exitCall()
-            return
+            return false
         }
         rtcEngine = RtcEngine.create(mContext.applicationContext, agoraAppId, rtcEventHandler)
         // 设置为直播模式，角色为主播
@@ -527,6 +529,7 @@ class RtcManager {
             rtcEngine?.setVideoEncoderConfiguration(configuration)
         }
         ChatLog.d(TAG, "RTC engine initialized successfully")
+        return true
     }
 
     /**
@@ -574,7 +577,10 @@ class RtcManager {
      */
     @Synchronized
     fun joinChannel(channelName: String, userAccount: String? = null) {
-        initializeEngine()
+        if (!initializeEngine()){
+            ChatLog.e(TAG,"initializeEngine() failed")
+            return
+        }
         CallKitClient.callKitScope.launch {
                 getToken()?.let {
                     rtcEngine?.let { engine ->

@@ -1003,10 +1003,10 @@ class SignalingManager {
                 override fun onSuccess() {
                     ChatLog.d(TAG, "sendInviteMsg Invite call success send to:" + message.to)
                     if (callState.value!= CallState.CALL_ANSWERED){
-                        //发送邀请信令成功再joinchannel
-                        signalingManager.joinChannel()
                         //从邀请页面进来不用再响铃
                         audioController.playRing(AudioController.RingType.OUTGOING)
+                        //发送邀请信令成功再joinchannel
+                        signalingManager.joinChannel()
                     }
                 }
                 override fun onError(code: Int, error: String?) {

@@ -16,6 +16,7 @@ import android.os.Looper
 import android.util.Log
 import android.view.KeyEvent
 import com.hyphenate.callkit.CallKitClient
+import com.hyphenate.callkit.bean.CallState
 import com.hyphenate.callkit.utils.ChatLog
 import java.io.IOException
 
@@ -48,9 +49,7 @@ class AudioController {
     private var audioFocusRequest: AudioFocusRequest? = null
     private var hasAudioFocus = false
     
-    // 记录是否主动停止了其他音频播放
-    private var didStopOtherAudio = false
-    
+
     // 记录开始播放铃声前是否有其他音频在播放
     private var wasOtherAudioPlaying = false
     
@@ -116,7 +115,7 @@ class AudioController {
      * 恢复其他应用的音频播放
      */
     private fun resumeOtherAudioPlayers() {
-        if (!didStopOtherAudio || !wasOtherAudioPlaying) {
+        if (!wasOtherAudioPlaying) {
             return
         }
         
@@ -127,7 +126,6 @@ class AudioController {
             } catch (e: Exception) {
                 ChatLog.e(TAG, "resumeOtherAudioPlayers error: ${e.message}" )
             }
-            didStopOtherAudio = false
             wasOtherAudioPlaying = false
         }, 500)
     }
@@ -184,15 +182,16 @@ class AudioController {
     internal fun playRing(ringType: RingType?=null) {
         val ringerMode: Int = audioManager.ringerMode
         if (ringerMode == AudioManager.RINGER_MODE_NORMAL) {
-            // 检测并记录当前音频状态
-            wasOtherAudioPlaying = isOtherAudioPlaying()
+            // 检测并记录当前音频状态，不记录通话时挂断场景
+            if (CallKitClient.callState.value != CallState.CALL_ANSWERED && ringType!= RingType.DING){
+                wasOtherAudioPlaying = isOtherAudioPlaying()
+            }
+
             stopOtherAudioPlayers()
 
             if (!requestAudioFocus()) {
                 return
             }
-
-            didStopOtherAudio = true
             ChatLog.e(TAG, "playRing start ringtone, ringType: $ringType")
             val ringFile: String? = when(ringType){
                 RingType.OUTGOING -> CallKitClient.callKitConfig.outgoingRingFile
@@ -310,8 +309,6 @@ class AudioController {
                 }
             }
             ringtone?.stop()
-            // 释放音频焦点，让其他应用可以恢复播放
-            releaseAudioFocus()
         } catch (e:Exception){
             ChatLog.e(TAG, "stopPlayRing error: ${e.message}")
         }
@@ -320,11 +317,11 @@ class AudioController {
     private fun releaseMediaPlayer() {
         try {
             ChatLog.d(TAG, "releaseMediaPlayer")
+            // 确保释放音频焦点（这会自动调用resumeOtherAudioPlayers）
+            releaseAudioFocus()
             stopPlayRing()
             mediaPlayer?.release()
             mediaPlayer = null
-            // 确保释放音频焦点（这会自动调用resumeOtherAudioPlayers）
-            releaseAudioFocus()
         } catch (e:Exception){
             ChatLog.e(TAG, "releaseMediaPlayer error: ${e.message}")
         }
@@ -335,10 +332,10 @@ class AudioController {
     internal fun exitCall() {
         ChatLog.d(TAG, "exitCall")
         //播放ding的时候让ding播放完后自己去处理释放
-        if (!isPlayDing) {
-            releaseMediaPlayer()
-        } else {
+        if (isPlayDing) {
             releaseAudioFocus()
+        } else {
+            releaseMediaPlayer()
         }
     }
 }
