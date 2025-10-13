@@ -889,6 +889,9 @@ class RtcManager {
         _isLocalShowInBigView.value=true
         _remoteVideoMute.value=true
         _remoteMicMute.value=false
+        _isFrontCamera.value = true
+        _isSpeakerOn.value =true
+        _connectedTime.value=0L
         clearParticipants()
     }
 }
