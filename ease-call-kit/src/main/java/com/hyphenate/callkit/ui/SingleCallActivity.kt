@@ -267,7 +267,7 @@ open class SingleCallActivity : BaseCallActivity<ActivitySingleCallBinding>() {
                     // 观察远端静音状态
                     viewModel.remoteMicMute.collect {
                         withContext(Dispatchers.Main) {
-                            updateRemoteMicMuteButton(it)
+//                            updateRemoteMicMuteButton(it)
                         }
                     }
                 }
