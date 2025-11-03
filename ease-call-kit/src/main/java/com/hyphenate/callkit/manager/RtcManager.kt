@@ -512,9 +512,9 @@ class RtcManager {
         if (callType.value != CallType.SINGLE_VOICE_CALL){
             // 启用视频模块
             rtcEngine?.enableVideo()
+            // 开启本地预览
+            rtcEngine?.startPreview()
             if (callType.value== CallType.SINGLE_VIDEO_CALL){
-                // 开启本地预览
-                rtcEngine?.startPreview()
                 setLocalVideoMute(false)
             }else{
                 setLocalVideoMute(true)
