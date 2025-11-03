@@ -220,10 +220,11 @@ class RtcManager {
 
         override fun onAudioVolumeIndication(speakers: Array<out AudioVolumeInfo>?, totalVolume: Int) {
             super.onAudioVolumeIndication(speakers, totalVolume)
-
             speakers?.forEach { speaker ->
                 val isSpeaking = speaker.volume > 10 // 音量阈值，可根据需要调整
-                updateParticipantSpeakingState(speaker.uid, isSpeaking)
+                //如果speak uid ==0,表明是本地用户，则取 localUid
+                val speakerUid = if (speaker.uid == 0) localUid.value else speaker.uid
+                updateParticipantSpeakingState(speakerUid, isSpeaking)
             }
         }
 

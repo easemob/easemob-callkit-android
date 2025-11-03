@@ -122,7 +122,7 @@ class MultiVideoCallMemberView @JvmOverloads constructor(
                     placeholder(R.drawable.callkit_video_default)
                 }
             }
-            ChatLog.d(TAG, "setVideoEnabled() video status changed to: $enabled")
+            ChatLog.d(TAG, "setVideoEnabled() uid: ${info.uid},video status changed to: $enabled")
         }
     }
 
@@ -134,7 +134,7 @@ class MultiVideoCallMemberView @JvmOverloads constructor(
             info.isMicEnabled=enabled
             // 更新麦克风状态
             micStatusImageView.visibility = if (info.isMicEnabled) GONE else VISIBLE
-            ChatLog.d(TAG, "setMicEnabled() mic status changed to: $enabled")
+            ChatLog.d(TAG, "setMicEnabled() uid: ${info.uid},mic status changed to: $enabled")
         }
     }
 
@@ -149,7 +149,7 @@ class MultiVideoCallMemberView @JvmOverloads constructor(
             if (speaking){
                 micStatusImageView.visibility=GONE
             }
-            ChatLog.d(TAG, "setSpeaking() speaking status changed to: $speaking")
+            ChatLog.d(TAG, "setSpeaking() uid: ${info.uid},speaking status changed to: $speaking")
         }
     }
 
@@ -172,7 +172,7 @@ class MultiVideoCallMemberView @JvmOverloads constructor(
             if (info.connected != connected) {
                 info.connected = connected
                 updateUI()
-                ChatLog.d(TAG, "setConnected() connection status changed to: $connected")
+                ChatLog.d(TAG, "setConnected() uid: ${info.uid}, connection status changed to: $connected")
             }
         }
     }
