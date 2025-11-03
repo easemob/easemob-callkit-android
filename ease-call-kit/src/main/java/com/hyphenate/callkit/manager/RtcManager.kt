@@ -689,7 +689,6 @@ class RtcManager {
                     ChatLog.d(TAG, "Applied optimization for background voice mode")
                 }
 
-                engine.enableLocalAudio(true)
                 engine.setParameters("{\"che.audio.enable.agc\":false}")  // 关闭自动增益控制节省CPU
 
                 ChatLog.d(TAG, "Background mode enabled successfully")
