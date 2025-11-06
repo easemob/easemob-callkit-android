@@ -220,10 +220,11 @@ class RtcManager {
 
         override fun onAudioVolumeIndication(speakers: Array<out AudioVolumeInfo>?, totalVolume: Int) {
             super.onAudioVolumeIndication(speakers, totalVolume)
-
             speakers?.forEach { speaker ->
                 val isSpeaking = speaker.volume > 10 // 音量阈值，可根据需要调整
-                updateParticipantSpeakingState(speaker.uid, isSpeaking)
+                //如果speak uid ==0,表明是本地用户，则取 localUid
+                val speakerUid = if (speaker.uid == 0) localUid.value else speaker.uid
+                updateParticipantSpeakingState(speakerUid, isSpeaking)
             }
         }
 
@@ -512,9 +513,9 @@ class RtcManager {
         if (callType.value != CallType.SINGLE_VOICE_CALL){
             // 启用视频模块
             rtcEngine?.enableVideo()
+            // 开启本地预览
+            rtcEngine?.startPreview()
             if (callType.value== CallType.SINGLE_VIDEO_CALL){
-                // 开启本地预览
-                rtcEngine?.startPreview()
                 setLocalVideoMute(false)
             }else{
                 setLocalVideoMute(true)
@@ -689,7 +690,6 @@ class RtcManager {
                     ChatLog.d(TAG, "Applied optimization for background voice mode")
                 }
 
-                engine.enableLocalAudio(true)
                 engine.setParameters("{\"che.audio.enable.agc\":false}")  // 关闭自动增益控制节省CPU
 
                 ChatLog.d(TAG, "Background mode enabled successfully")

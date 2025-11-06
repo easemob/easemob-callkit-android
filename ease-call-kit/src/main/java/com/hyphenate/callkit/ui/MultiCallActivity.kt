@@ -391,6 +391,9 @@ open class MultiCallActivity : BaseCallActivity<ActivityMultiVideoCallBinding>()
      * 更新摄像头按钮
      */
     private fun updateCameraButton(enabled: Boolean) {
+        if (binding.flBig.isNotEmpty()){
+            binding.flBig.getChildAt(0).visibility= if (enabled) View.VISIBLE else View.GONE
+        }
         binding.controlPanelIncomming.ivIncomingVideoCamera.apply {
             setImageResource(if (enabled) R.drawable.callkit_video_camera_on else R.drawable.callkit_video_camera_off)
             setBackgroundResource(if (enabled) R.color.callkit_button_on_background else R.color.callkit_button_off_background)

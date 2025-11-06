@@ -74,7 +74,7 @@ class MultipleCallViewModel : BaseViewModel() {
     }
 
     init {
-        CallKitClient.rtcManager.initializeEngine()
+        rtcManager.initializeEngine()
     }
 
     /**
@@ -92,18 +92,16 @@ class MultipleCallViewModel : BaseViewModel() {
     }
 
     fun changeCameraStatus() {
-        if (callState.value != CallState.CALL_ALERTING){
-            CallKitClient.rtcManager.changeCameraStatus()
-        }
+        rtcManager.changeCameraStatus()
     }
     fun changeMicStatus() {
-        CallKitClient.rtcManager.changeMicStatus()
+        rtcManager.changeMicStatus()
     }
     fun toggleSpeaker() {
         rtcManager.setEnableSpeakerphone(!rtcManager.isSpeakerOn.value)
     }
     fun toggleCamera() {
-        CallKitClient.rtcManager.switchCamera()
+        rtcManager.switchCamera()
     }
     fun endCall() {
         signalingManager.endCall(CallType.GROUP_CALL)
