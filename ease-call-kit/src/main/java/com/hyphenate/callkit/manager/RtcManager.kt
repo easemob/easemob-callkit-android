@@ -615,17 +615,7 @@ class RtcManager {
      * Get RTC Token
      */
     private suspend fun getToken(): EMRTCTokenInfo? {
-        val appId = rtcConfigProvider?.onSyncGetAppId()
-        return when {
-            !appId.isNullOrEmpty() -> {
-                val providerToken = rtcConfigProvider?.getRtcToken(channelName)
-                if (providerToken==null) {
-                    ChatLog.d(TAG, "getRtcToken from provider is empty")
-                }
-                providerToken
-            }
-            else -> getRtcToken(null)
-        }
+        return rtcConfigProvider?.getRtcToken(channelName)?:getRtcToken(null)
     }
 
     /**
