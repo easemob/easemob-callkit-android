@@ -176,7 +176,7 @@ object CallKitClient {
     internal val callKitConfig by lazy{ CallKitConfig() }
     internal var callType = MutableStateFlow(CallType.SINGLE_VIDEO_CALL)
     internal var callState = MutableStateFlow(CallState.CALL_IDLE)
-    internal var rtcConfigProvider: RTCConfigProvider? = null
+    var rtcConfigProvider: RTCConfigProvider? = null
     // 协程相关
     internal val callKitScope by lazy{ CoroutineScope(SupervisorJob() + Dispatchers.Default)}
     internal var groupId: String = ""

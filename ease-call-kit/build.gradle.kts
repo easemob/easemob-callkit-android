@@ -60,7 +60,7 @@ dependencies {
     // 集成 lite SDK
     api("io.agora.rtc:lite-sdk:4.5.1")
 
-    api("io.hyphenate:hyphenate-chat:4.16.0")
+    api("io.hyphenate:hyphenate-chat:4.16.1")
 //    implementation(project(mapOf("path" to ":hyphenatechatsdk")))
 
 }
