@@ -14,7 +14,6 @@ import com.hyphenate.callkit.manager.FloatWindow
 import com.hyphenate.callkit.ui.MultiCallActivity
 import com.hyphenate.callkit.ui.SingleCallActivity
 import com.hyphenate.callkit.utils.ChatLog
-import com.hyphenate.push.platform.normal.a.f
 
 class CallKitActivityLifecycleCallback: Application.ActivityLifecycleCallbacks{
     private val TAG = "CallKit ActivityLifecycle"
