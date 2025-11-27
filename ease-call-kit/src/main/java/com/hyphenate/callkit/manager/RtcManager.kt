@@ -494,8 +494,10 @@ class RtcManager {
         if (rtcEngine!=null){
             return true
         }
-        val agoraAppId = rtcConfigProvider?.onSyncGetAppId()?:getRtcAppID()
-
+        var agoraAppId = rtcConfigProvider?.onSyncGetAppId()
+        if (agoraAppId.isNullOrEmpty()){
+            agoraAppId =getRtcAppID()
+        }
         if (agoraAppId.isNullOrEmpty()){
             ChatLog.e(TAG, "Agora App ID is null or empty")
             callKitListener?.onCallError(CallErrorType.IM_ERROR, 0, "Agora App ID is null or empty")
