@@ -593,7 +593,14 @@ class RtcManager {
                                 channelName,
                                 userAccount
                             )
-                            else -> engine.joinChannel(it.rtcToken, channelName, null, it.uid)
+                            else -> {
+                                if (CallKitClient.callKitConfig.disableRTCTokenValidation){
+                                    ChatLog.d(TAG, "joinChannel disableRTCTokenValidation is true, joinChannel without token")
+                                    engine.joinChannel(null, channelName, null, it.uid)
+                                }else{
+                                    engine.joinChannel(it.rtcToken, channelName, null, it.uid)
+                                }
+                            }
                         }
                         ChatLog.d(TAG, "Joining channel: $channelName" + ", userAccount=$userAccount, uid=${it.uid},result=$result")
 
