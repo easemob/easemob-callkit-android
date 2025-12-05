@@ -494,8 +494,10 @@ class RtcManager {
         if (rtcEngine!=null){
             return true
         }
-        val agoraAppId = rtcConfigProvider?.onSyncGetAppId()?:getRtcAppID()
-
+        var agoraAppId = rtcConfigProvider?.onSyncGetAppId()
+        if (agoraAppId.isNullOrEmpty()){
+            agoraAppId =getRtcAppID()
+        }
         if (agoraAppId.isNullOrEmpty()){
             ChatLog.e(TAG, "Agora App ID is null or empty")
             callKitListener?.onCallError(CallErrorType.IM_ERROR, 0, "Agora App ID is null or empty")
@@ -591,7 +593,14 @@ class RtcManager {
                                 channelName,
                                 userAccount
                             )
-                            else -> engine.joinChannel(it.rtcToken, channelName, null, it.uid)
+                            else -> {
+                                if (CallKitClient.callKitConfig.disableRTCTokenValidation){
+                                    ChatLog.d(TAG, "joinChannel disableRTCTokenValidation is true, joinChannel without token")
+                                    engine.joinChannel(null, channelName, null, it.uid)
+                                }else{
+                                    engine.joinChannel(it.rtcToken, channelName, null, it.uid)
+                                }
+                            }
                         }
                         ChatLog.d(TAG, "Joining channel: $channelName" + ", userAccount=$userAccount, uid=${it.uid},result=$result")
 
@@ -615,17 +624,7 @@ class RtcManager {
      * Get RTC Token
      */
     private suspend fun getToken(): EMRTCTokenInfo? {
-        val appId = rtcConfigProvider?.onSyncGetAppId()
-        return when {
-            !appId.isNullOrEmpty() -> {
-                val providerToken = rtcConfigProvider?.getRtcToken(channelName)
-                if (providerToken==null) {
-                    ChatLog.d(TAG, "getRtcToken from provider is empty")
-                }
-                providerToken
-            }
-            else -> getRtcToken(null)
-        }
+        return rtcConfigProvider?.getRtcToken(channelName)?:getRtcToken(null)
     }
 
     /**

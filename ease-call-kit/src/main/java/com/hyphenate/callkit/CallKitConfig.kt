@@ -55,6 +55,17 @@ class CallKitConfig {
 
     /**
      * \~chinese
+     * 是否禁用RTC Token验证
+     * 默认值为false，即启用RTC Token验证
+     *
+     * \~english
+     * Whether to disable RTC Token validation
+     * The default value is false, that is, RTC Token validation is enabled
+     */
+    var disableRTCTokenValidation: Boolean = false
+
+    /**
+     * \~chinese
      * 复制另一个CallKitConfig对象的所有属性到当前对象
      *
      * \~english
@@ -65,5 +76,6 @@ class CallKitConfig {
         this.outgoingRingFile = other.outgoingRingFile
         this.dingRingFile = other.dingRingFile
         this.callTimeout = other.callTimeout
+        this.disableRTCTokenValidation = other.disableRTCTokenValidation
     }
 }

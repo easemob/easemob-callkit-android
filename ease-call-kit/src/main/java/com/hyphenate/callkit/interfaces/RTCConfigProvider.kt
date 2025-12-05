@@ -16,24 +16,28 @@ interface RTCConfigProvider {
     /**
      * \~chinese
      * 同步提供Agora AppId
+     * 默认返回null
      *
      * \~english
      * Sync provide Agora AppId
+     * Default returns empty string
      */
-    fun onSyncGetAppId(): String
+    fun onSyncGetAppId(): String? = null
 
     /**
      * \~chinese
      * 异步提供 Agora Rtc token
+     * 默认返回 null
      * @param channelName 频道名称
      * @param callback 回调
      *
      * \~english
      * Async provide Agora Rtc token
+     * Default returns null
      * @param channelName channel name
      * @param callback callback
      */
-    fun onAsyncFetchRtcToken(channelName:String?,callback: OnValueSuccess<EMRTCTokenInfo>)
+    fun onAsyncFetchRtcToken(channelName:String?,callback: OnValueSuccess<EMRTCTokenInfo?>) = callback(null)
 }
 
 /**
@@ -47,7 +51,7 @@ interface RTCConfigProvider {
  * @param channelName channel name
  * @return Agora Rtc token
  */
-suspend fun RTCConfigProvider.getRtcToken(channelName: String?): EMRTCTokenInfo {
+suspend fun RTCConfigProvider.getRtcToken(channelName: String?): EMRTCTokenInfo? {
     return suspendCoroutine { continuation ->
         onAsyncFetchRtcToken(channelName,callback = { info ->
             continuation.resume(info)
