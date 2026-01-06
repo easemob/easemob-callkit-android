@@ -629,6 +629,13 @@ class SignalingManager {
                                 CallEndReason.CallEndReasonHandleOnOtherDevice,
                                 callInfo
                             )
+                        } else if (TextUtils.equals(result, Constant.CALL_ANSWER_BUSY)) {
+                            //其他设备忙碌，对方已结束通话
+                            updateMessage(0,CallEndReason.CallEndReasonHandleOnOtherDevice)
+                            callKitListener?.onEndCallWithReason(
+                                CallEndReason.CallEndReasonHandleOnOtherDevice,
+                                callInfo
+                            )
                         }
                         exitChannel() // 再退出CallKit
                     }
@@ -656,25 +663,20 @@ class SignalingManager {
                             callEvent.callId = fromCallId
                             if (TextUtils.equals(result1, Constant.CALL_ANSWER_BUSY)) {
                                 audioController.stopPlayRingAndPlayDing()
-                                if (!mConfirm_ring) {
-                                    //比如对方空闲端网慢，还没有回复过来alert
-                                    //退出频道
-                                    // 提示对方正在忙碌中
-                                    //退出通话
-                                    updateMessage(0,CallEndReason.CallEndReasonBusy)
-                                    //对方正在忙碌中
-                                    callKitListener?.onEndCallWithReason(
-                                        CallEndReason.CallEndReasonBusy,
-                                        callInfo
-                                    )
-                                    //过一秒再关闭页面
-                                    callKitScope.launch {
-                                        delay(1000)
-                                        exitChannel()
-                                    }
-                                } else {
+                                if (mConfirm_ring) {
                                     //让对方空闲端挂断，因为对方多端正在通话
                                     sendCmdMsg(callEvent, fromUserId)
+                                }
+                                //对方正在忙碌中，更新消息并退出通话
+                                updateMessage(0, CallEndReason.CallEndReasonBusy)
+                                callKitListener?.onEndCallWithReason(
+                                    CallEndReason.CallEndReasonBusy,
+                                    callInfo
+                                )
+                                //过一秒再关闭页面
+                                callKitScope.launch {
+                                    delay(1000)
+                                    exitChannel()
                                 }
                             } else if (TextUtils.equals(result1, Constant.CALL_ANSWER_ACCEPT)) {
                                 audioController.stopPlayRing()
@@ -1014,6 +1016,11 @@ class SignalingManager {
             message.setMessageStatusCallback(object : EMCallBack {
                 override fun onSuccess() {
                     ChatLog.d(TAG, "sendInviteMsg Invite call success send to:" + message.to)
+                    // 检查通话是否已经结束（如 Agora App ID 错误等情况导致的提前退出）
+                    if (callState.value == CallState.CALL_IDLE) {
+                        ChatLog.d(TAG, "sendInviteMsg Call already ended, skip playRing and joinChannel")
+                        return
+                    }
                     if (callState.value!= CallState.CALL_ANSWERED){
                         //从邀请页面进来不用再响铃
                         audioController.playRing(AudioController.RingType.OUTGOING)

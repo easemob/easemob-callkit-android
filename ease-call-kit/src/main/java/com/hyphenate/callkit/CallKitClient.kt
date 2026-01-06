@@ -321,6 +321,14 @@ object CallKitClient {
             return
         }
 
+        // 在发送消息之前检查 Agora App ID 是否可用
+        if (!rtcManager.isAgoraAppIdAvailable()) {
+            val msg = "Agora App ID is null or empty"
+            ChatLog.e(TAG, msg)
+            callKitListener?.onCallError(CallErrorType.IM_ERROR, 0, msg)
+            return
+        }
+
         callType.value = type
         callState.value = CallState.CALL_OUTGOING
         fromUserId = userID
@@ -389,6 +397,15 @@ object CallKitClient {
             )
             return
         }
+
+        // 在发送消息之前检查 Agora App ID 是否可用
+        if (!rtcManager.isAgoraAppIdAvailable()) {
+            val msg = "Agora App ID is null or empty"
+            ChatLog.e(TAG, msg)
+            callKitListener?.onCallError(CallErrorType.IM_ERROR, 0, msg)
+            return
+        }
+
         // 还没有加入群视频
         callType.value = CallType.GROUP_CALL
         isComingCall = false
