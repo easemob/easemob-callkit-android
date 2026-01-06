@@ -98,6 +98,8 @@ class SignalingManager {
     private var commonTimerJob: Job? = null
     private var alertTimerJob: Job? = null
     private var eventJob: Job? = null
+    //存储通话信息 key:callId , value: CallInfo。防止多人同时呼叫，callinfo被覆盖问题
+    private var callInfoMap = ConcurrentHashMap<String, CallInfo>()
     internal var callInfo: CallInfo? = null
 
     /**
@@ -371,7 +373,7 @@ class SignalingManager {
                         callEvent.calleeDevId = deviceId
                         sendCmdMsg(callEvent, fromUser)
                     } else {
-                         callInfo = CallInfo(
+                         val callInfoTemp = CallInfo(
                             channel,
                             fromUser,
                             true,
@@ -381,6 +383,7 @@ class SignalingManager {
                             ext,
                             message
                         )
+                        callInfoMap.put(fromCallId,callInfoTemp)
 
                         //获取对方信息
                         val userInfo = message.getUserInfo()
@@ -534,6 +537,7 @@ class SignalingManager {
                                 //对方主叫的设备信息
                                 CallKitClient.callerDevId = callerDevId
                                 callID = fromCallId
+                                callInfo = callInfoMap.get(callID)
                                 callInfo?.let { info->
                                     channelName = info.channelName
                                     callType.value = info.callKitType
@@ -573,6 +577,14 @@ class SignalingManager {
                                 callKitListener?.onReceivedCall(fromUserId,callType.value,  inviteExt)
                             } else {
                                 //通话无效
+                                //发送忙碌状态
+                                val callEvent = AnswerEvent()
+                                callEvent.result = Constant.CALL_ANSWER_BUSY
+                                callEvent.callerDevId = callerDevId
+                                callEvent.callId = fromCallId
+                                callEvent.calleeDevId = deviceId
+                                sendCmdMsg(callEvent, fromUser)
+
                                 ChatLog.e(TAG, "Received CALL_CONFIRM_RING ,but callState is not idle, ignoring")
                             }
                         }else{
@@ -1161,6 +1173,7 @@ class SignalingManager {
     internal fun exitCall(){
         stopAllTimers()
         inViteUserMap.clear()
+        callInfoMap.clear()
         TelecomHelper.stopService(mContext)
     }
 }
