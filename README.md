@@ -17,7 +17,7 @@
 2. [创建应用](https://doc.easemob.com/product/console/app_create.html)，[获取应用的 App Key](https://doc.easemob.com/product/console/app_manage.html#获取应用凭证)，格式为 `orgname#appname`。
 3. [创建用户](https://doc.easemob.com/product/console/operation_user.html#创建用户)，获取用户 ID 和 IM token。
 4. [创建群组](https://doc.easemob.com/product/console/operation_group.html#创建群组)，获取群组 ID。将用户加入群组。
-5. [开通音视频服务](https://doc.easemob.com/product_activation.html)。
+5. [开通音视频服务](https://doc.easemob.com/callkit/android/product_activation.html)。
 
 ## 操作步骤
 
