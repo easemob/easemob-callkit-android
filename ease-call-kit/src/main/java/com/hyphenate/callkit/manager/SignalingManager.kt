@@ -869,6 +869,10 @@ class SignalingManager {
         ChatLog.e(TAG, "cmd ${event.callAction?.state} error code:" + code + ",error: " + error)
         callKitListener?.onCallError(CallErrorType.IM_ERROR,code, error)
         if (event.callAction == CallAction.CALL_CANCEL) {
+            if (callType.value == CallType.GROUP_CALL){
+                //群组通话取消出错时不处理，因为有可能是对部分成员取消失败（比如被该成员拉黑了），而自己和其他成员还在正常群通话中
+                return
+            }
             //退出频道
             exitChannel()
         } else if (event.callAction == CallAction.CALL_CONFIRM_CALLEE) {
