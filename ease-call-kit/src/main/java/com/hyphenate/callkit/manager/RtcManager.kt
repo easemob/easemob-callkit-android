@@ -483,6 +483,21 @@ class RtcManager {
 
     /**
      * \~chinese
+     * 检查 Agora App ID 是否可用
+     *
+     * \~english
+     * Check if Agora App ID is available
+     */
+    internal fun isAgoraAppIdAvailable(): Boolean {
+        var agoraAppId = rtcConfigProvider?.onSyncGetAppId()
+        if (agoraAppId.isNullOrEmpty()) {
+            agoraAppId = getRtcAppID()
+        }
+        return !agoraAppId.isNullOrEmpty()
+    }
+
+    /**
+     * \~chinese
      * 初始化RTC引擎
      *
      * \~english
