@@ -214,23 +214,23 @@ class AudioController {
      */
     @Synchronized
     internal fun playRing(ringType: RingType?=null) {
+        // 检测并记录当前音频状态，不记录通话时挂断场景和DING铃声场景
+        if (CallKitClient.callState.value != CallState.CALL_ANSWERED && ringType != RingType.DING) {
+            wasOtherAudioPlaying = isOtherAudioPlaying()
+        }
+        
+        // 暂停其他音频播放（静音模式下也需要）
+        stopOtherAudioPlayers()
+        
+        // 请求音频焦点（静音模式下也需要，用于管理三方音频）
+        if (!requestAudioFocus()) {
+            ChatLog.e(TAG, "playRing requestAudioFocus failed")
+            // 即使请求焦点失败，也继续执行（静音模式下不影响主要功能）
+        }
+        
         val ringerMode: Int = audioManager.ringerMode
         if (ringerMode == AudioManager.RINGER_MODE_NORMAL) {
-            // 【重要】在切换音频模式之前检测音频状态！某些机型在切换到 MODE_RINGTONE 后会立即暂停其他音频
-            // 检测并记录当前音频状态，不记录通话时挂断场景和DING铃声场景
-            if (CallKitClient.callState.value != CallState.CALL_ANSWERED && ringType != RingType.DING) {
-                wasOtherAudioPlaying = isOtherAudioPlaying()
-            }
-            
             enterRingtoneMode()
-
-            stopOtherAudioPlayers()
-
-            if (!requestAudioFocus()) {
-                // 请求焦点失败也要恢复 mode
-                restoreAudioModeIfNeeded()
-                return
-            }
             ChatLog.e(TAG, "playRing start ringtone, ringType: $ringType")
             val ringFile: String? = when(ringType){
                 RingType.OUTGOING -> CallKitClient.callKitConfig.outgoingRingFile
