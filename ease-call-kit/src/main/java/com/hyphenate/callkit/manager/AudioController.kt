@@ -44,6 +44,9 @@ class AudioController {
     private lateinit var mContext: Context
     private lateinit var audioManager: AudioManager
     private var isPlayDing = false
+
+    // 记录进入响铃前的 Audio mode，停止响铃后恢复，避免长期污染系统全局状态
+    private var savedAudioMode: Int? = null
     
     // AudioFocus 相关
     private var audioFocusRequest: AudioFocusRequest? = null
@@ -74,28 +77,59 @@ class AudioController {
         audioManager = mContext.getSystemService(AUDIO_SERVICE) as AudioManager
         // 开始振铃设置
         val ringUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-        audioManager.setMode(AudioManager.MODE_RINGTONE)
         if (ringUri != null) {
             ringtone = RingtoneManager.getRingtone(mContext, ringUri)
         }
         mediaPlayer=MediaPlayer()
     }
 
+    private fun enterRingtoneMode() {
+        // 保存并临时切换到响铃模式（仅在需要时做）
+        if (savedAudioMode == null) {
+            savedAudioMode = audioManager.mode
+        }
+        if (audioManager.mode != AudioManager.MODE_RINGTONE) {
+            audioManager.mode = AudioManager.MODE_RINGTONE
+        }
+    }
+
+    private fun restoreAudioModeIfNeeded() {
+        savedAudioMode?.let { prev ->
+            if (audioManager.mode != prev) {
+                audioManager.mode = prev
+            }
+        }
+        savedAudioMode = null
+    }
+
     /**
      * 检测当前是否有其他音频在播放
+     * 注意：某些机型的 activePlaybackConfigurations 可能返回空列表，
+     * 因此需要回退到 isMusicActive 方法
      */
     private fun isOtherAudioPlaying(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             try {
-                audioManager.activePlaybackConfigurations.any { config ->
-                    config.audioAttributes.usage == AudioAttributes.USAGE_MEDIA
+                val configs = audioManager.activePlaybackConfigurations
+                // 检测多种可能的音频类型
+                val hasMedia = configs.any { config ->
+                    val usage = config.audioAttributes.usage
+                    usage == AudioAttributes.USAGE_MEDIA ||
+                    usage == AudioAttributes.USAGE_GAME ||
+                    usage == AudioAttributes.USAGE_UNKNOWN
                 }
+                // 如果 activePlaybackConfigurations 为空，使用备用检测方法
+                if (configs.isEmpty()) {
+                    return audioManager.isMusicActive
+                }
+                hasMedia
             } catch (e: Exception) {
-                false
+                // 出错时使用备用方法
+                audioManager.isMusicActive
             }
         } else {
-            // 对于旧版本 Android，保守假设可能有音频播放
-            audioManager.getStreamVolume(AudioManager.STREAM_MUSIC) > 0
+            // 对于旧版本 Android，使用 isMusicActive
+            audioManager.isMusicActive
         }
     }
 
@@ -124,7 +158,7 @@ class AudioController {
                 audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY))
                 audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY))
             } catch (e: Exception) {
-                ChatLog.e(TAG, "resumeOtherAudioPlayers error: ${e.message}" )
+                ChatLog.e(TAG, "resumeOtherAudioPlayers error: ${e.message}")
             }
             wasOtherAudioPlaying = false
         }, 500)
@@ -182,14 +216,19 @@ class AudioController {
     internal fun playRing(ringType: RingType?=null) {
         val ringerMode: Int = audioManager.ringerMode
         if (ringerMode == AudioManager.RINGER_MODE_NORMAL) {
-            // 检测并记录当前音频状态，不记录通话时挂断场景
-            if (CallKitClient.callState.value != CallState.CALL_ANSWERED && ringType!= RingType.DING){
+            // 【重要】在切换音频模式之前检测音频状态！某些机型在切换到 MODE_RINGTONE 后会立即暂停其他音频
+            // 检测并记录当前音频状态，不记录通话时挂断场景和DING铃声场景
+            if (CallKitClient.callState.value != CallState.CALL_ANSWERED && ringType != RingType.DING) {
                 wasOtherAudioPlaying = isOtherAudioPlaying()
             }
+            
+            enterRingtoneMode()
 
             stopOtherAudioPlayers()
 
             if (!requestAudioFocus()) {
+                // 请求焦点失败也要恢复 mode
+                restoreAudioModeIfNeeded()
                 return
             }
             ChatLog.e(TAG, "playRing start ringtone, ringType: $ringType")
@@ -311,6 +350,9 @@ class AudioController {
             ringtone?.stop()
         } catch (e:Exception){
             ChatLog.e(TAG, "stopPlayRing error: ${e.message}")
+        } finally {
+            // 停止响铃后恢复之前的 mode，避免影响系统/其他应用
+            restoreAudioModeIfNeeded()
         }
     }
 
