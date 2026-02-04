@@ -47,6 +47,14 @@ class CallForegroundService : Service() {
         private const val CHANNEL_ID = "call_foreground_service"
         private const val CHANNEL_NAME = "通话服务"
 
+        // 标记服务是否已完成 startForeground() 调用
+        @Volatile
+        private var isForegroundStarted = false
+
+        // 标记是否有待处理的停止请求
+        @Volatile
+        private var pendingStop = false
+
         /**
          * \~chinese
          * 启动前台服务
@@ -61,6 +69,9 @@ class CallForegroundService : Service() {
                     ChatLog.d(TAG, "Not in call, skipping foreground service start")
                     return
                 }
+
+                // 重置待停止标记
+                pendingStop = false
 
                 val intent = Intent(context, CallForegroundService::class.java)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -81,8 +92,18 @@ class CallForegroundService : Service() {
          * Stop foreground service
          */
         fun stopService(context: Context) {
-            val intent = Intent(context, CallForegroundService::class.java)
-            context.stopService(intent)
+            if (isForegroundStarted) {
+                // 服务已完成 startForeground()，可以安全停止
+                val intent = Intent(context, CallForegroundService::class.java)
+                context.stopService(intent)
+                isForegroundStarted = false
+                pendingStop = false
+            } else {
+                // 服务还未完成 startForeground()，标记待停止
+                // 服务启动完成后会检查此标记并自行停止
+                ChatLog.d(TAG, "Service not yet started foreground, marking pending stop")
+                pendingStop = true
+            }
         }
     }
 
@@ -110,7 +131,16 @@ class CallForegroundService : Service() {
                 // 对于 Android 11 以下版本，无需指定服务类型，简单地启动前台服务即可
                 this.startForeground(NOTIFICATION_ID, notification)
             }
+            isForegroundStarted = true
             ChatLog.d(TAG, "successful startForeground")
+
+            // 检查是否有待处理的停止请求
+            if (pendingStop) {
+                ChatLog.d(TAG, "Pending stop detected, stopping service now")
+                pendingStop = false
+                stopSelf()
+                return
+            }
         } catch (ex: java.lang.Exception) {
             ChatLog.e(TAG, "Error starting foreground service:" + ex)
         }
@@ -151,6 +181,10 @@ class CallForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+
+        // 重置前台服务状态标志
+        isForegroundStarted = false
+        pendingStop = false
 
         // 取消观察
         observeJob?.cancel()
