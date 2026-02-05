@@ -9,6 +9,7 @@ import android.os.Looper
 import android.telecom.TelecomManager
 import androidx.core.net.toUri
 import com.hyphenate.callkit.CallKitClient
+import com.hyphenate.callkit.service.CallForegroundService
 import com.hyphenate.callkit.telecom.PhoneAccountHelper.getPhoneAccountHandle
 import com.hyphenate.callkit.utils.ChatLog
 import com.hyphenate.callkit.utils.PermissionHelper.hasReadPhoneStatePermission
@@ -83,7 +84,7 @@ object TelecomHelper {
         if (!status.isSupported or !status.isRegistered or !status.isEnabled) {
             ChatLog.e(TAG,"Phone account is not supported or not registered or not enabled: ${status.message}")
             // 如果PhoneAccount未启用，直接启动自定义来电界面
-            startCustomIncomingCallActivity(callerId, callerName, callId)
+            startCustomIncomingCallActivity(context,callerId, callerName, callId)
             return
         }
 
@@ -108,17 +109,19 @@ object TelecomHelper {
             )
         } catch (e: Exception) {
             ChatLog.e(TAG, "Failed to add incoming call: ${e.message}")
-            startCustomIncomingCallActivity(callerId, callerName, callId)
+            startCustomIncomingCallActivity(context,callerId, callerName, callId)
         }
     }
 
     private fun startCustomIncomingCallActivity(
+        context: Context,
         callerId: String,
         callerName: String,
         callId: String
     ) {
         ChatLog.d(TAG, "Starting custom incoming call activity as fallback")
         CallKitClient.signalingManager.startSendEvent()
+        IncomingCallService.stopService(context)
     }
 
 

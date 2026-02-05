@@ -6,14 +6,12 @@ import android.content.Intent
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
-import android.media.AudioPlaybackConfiguration
 import android.media.MediaPlayer
 import android.media.Ringtone
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import android.view.KeyEvent
 import com.hyphenate.callkit.CallKitClient
 import com.hyphenate.callkit.bean.CallState
@@ -149,7 +147,7 @@ class AudioController {
      * 恢复其他应用的音频播放
      */
     private fun resumeOtherAudioPlayers() {
-        if (!wasOtherAudioPlaying) {
+        if (CallKitClient.callState.value != CallState.CALL_IDLE || !wasOtherAudioPlaying) {
             return
         }
         
@@ -164,35 +162,6 @@ class AudioController {
         }, 500)
     }
 
-    /**
-     * 请求音频焦点
-     */
-    private fun requestAudioFocus(): Boolean {
-        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val audioAttributes = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build()
-            
-            audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                .setAudioAttributes(audioAttributes)
-                .setOnAudioFocusChangeListener(audioFocusChangeListener)
-                .build()
-            
-            audioManager.requestAudioFocus(audioFocusRequest!!)
-        } else {
-            @Suppress("DEPRECATION")
-            audioManager.requestAudioFocus(
-                audioFocusChangeListener,
-                AudioManager.STREAM_RING,
-                AudioManager.AUDIOFOCUS_GAIN
-            )
-        }
-        
-        hasAudioFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-        return hasAudioFocus
-    }
-    
     /**
      * 释放音频焦点
      */
@@ -210,24 +179,58 @@ class AudioController {
     }
 
     /**
-     * 播放铃声
+     * 准备通话音频状态（记录音乐状态、暂停音乐、请求焦点）
      */
-    @Synchronized
-    internal fun playRing(ringType: RingType?=null) {
+    internal fun prepareForCall(ringType: RingType?=null) {
+
         // 检测并记录当前音频状态，不记录通话时挂断场景和DING铃声场景
         if (CallKitClient.callState.value != CallState.CALL_ANSWERED && ringType != RingType.DING) {
             wasOtherAudioPlaying = isOtherAudioPlaying()
         }
-        
+
         // 暂停其他音频播放（静音模式下也需要）
         stopOtherAudioPlayers()
-        
+
         // 请求音频焦点（静音模式下也需要，用于管理三方音频）
-        if (!requestAudioFocus()) {
+        if (!requestVoiceCallAudioFocus()) {
             ChatLog.e(TAG, "playRing requestAudioFocus failed")
             // 即使请求焦点失败，也继续执行（静音模式下不影响主要功能）
         }
-        
+    }
+    
+    /**
+     * 请求通话类型的音频焦点
+     */
+    private fun requestVoiceCallAudioFocus(): Boolean {
+        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val audioAttributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
+            audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                .setAudioAttributes(audioAttributes)
+                .setOnAudioFocusChangeListener(audioFocusChangeListener)
+                .build()
+            audioManager.requestAudioFocus(audioFocusRequest!!)
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.requestAudioFocus(
+                audioFocusChangeListener,
+                AudioManager.STREAM_VOICE_CALL,
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
+            )
+        }
+        hasAudioFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        return hasAudioFocus
+    }
+
+    /**
+     * 播放铃声
+     */
+    @Synchronized
+    internal fun playRing(ringType: RingType?=null) {
+        prepareForCall(ringType)
+
         val ringerMode: Int = audioManager.ringerMode
         if (ringerMode == AudioManager.RINGER_MODE_NORMAL) {
             enterRingtoneMode()

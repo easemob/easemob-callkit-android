@@ -49,41 +49,41 @@ class CallForegroundService : Service() {
 
         // 标记服务是否已完成 startForeground() 调用
         @Volatile
-        private var isForegroundStarted = false
+        var isForegroundStarted = false
+            private set
 
         // 标记是否有待处理的停止请求
         @Volatile
         private var pendingStop = false
 
+        private const val ACTION_LAUNCH_ACTIVITY = "LAUNCH_ACTIVITY"
+        private const val ACTION_END_CALL = "END_CALL"
+
         /**
-         * \~chinese
          * 启动前台服务
-         *
-         * \~english
-         * Start foreground service
+         * @param launchActivity 是否同时启动通话Activity（用于telecom接听场景）
          */
-        fun startService(context: Context) {
+        @JvmOverloads
+        fun startService(context: Context, launchActivity: Boolean = false) {
+            // 普通场景下检查是否在通话中
+            if (!launchActivity && CallKitClient.callState.value == CallState.CALL_IDLE) {
+                return
+            }
+            pendingStop = false
             try {
-                // 检查是否真的在通话中
-                if (CallKitClient.callState.value == CallState.CALL_IDLE) {
-                    ChatLog.d(TAG, "Not in call, skipping foreground service start")
-                    return
+                val intent = Intent(context, CallForegroundService::class.java).apply {
+                    if (launchActivity) action = ACTION_LAUNCH_ACTIVITY
                 }
-
-                // 重置待停止标记
-                pendingStop = false
-
-                val intent = Intent(context, CallForegroundService::class.java)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(intent)
                 } else {
                     context.startService(intent)
                 }
             } catch (e: Exception) {
-                ChatLog.e(TAG, "Failed to start foreground service: ${e.message}")
+                ChatLog.e(TAG, "Failed to start service: ${e.message}")
             }
         }
-
+        
         /**
          * \~chinese
          * 停止前台服务
@@ -161,11 +161,16 @@ class CallForegroundService : Service() {
 
         // 处理特殊动作
         when (intent?.action) {
-            "END_CALL" -> {
+            ACTION_END_CALL -> {
                 // 结束通话
                 CallKitClient.exitCall()
                 stopSelf()
                 return START_NOT_STICKY
+            }
+            ACTION_LAUNCH_ACTIVITY -> {
+                // 这里可以启动通话中的界面
+                CallKitClient.signalingManager.startSendEvent()
+                return START_STICKY
             }
         }
 
@@ -313,7 +318,7 @@ class CallForegroundService : Service() {
         // 如果是通话中状态，添加结束通话按钮
         if (callState == CallState.CALL_ANSWERED) {
             val endCallIntent = Intent(this, CallForegroundService::class.java).apply {
-                action = "END_CALL"
+                action = ACTION_END_CALL
             }
             val endCallPendingIntent = PendingIntent.getService(
                 this,

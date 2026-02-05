@@ -1,9 +1,5 @@
 package com.hyphenate.callkit.telecom
 
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -13,9 +9,8 @@ import android.telecom.ConnectionService
 import android.telecom.DisconnectCause
 import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
-import androidx.annotation.RequiresApi
-import androidx.core.content.ContextCompat
 import com.hyphenate.callkit.CallKitClient
+import com.hyphenate.callkit.service.CallForegroundService
 import com.hyphenate.callkit.telecom.IncomingCallService.Companion.EXTRA_CALLER_DISPLAY_NAME_COMPAT
 import com.hyphenate.callkit.utils.ChatLog
 import java.util.UUID
@@ -33,7 +28,6 @@ class VoipConnectionService : ConnectionService() {
 
     private val TAG = "Callkit VoipConnectionService"
     private val activeConnections = mutableMapOf<String, Connection>()
-    private var callActionReceiver: BroadcastReceiver? = null
 
     companion object {
         @Volatile
@@ -163,8 +157,8 @@ class VoipConnectionService : ConnectionService() {
                 ChatLog.d(TAG, "Starting call activity for callId: $callId")
                 // 发送接听消息给对方
                 CallKitClient.signalingManager.answerCall()
-                // 这里可以启动通话中的界面
-                CallKitClient.signalingManager.startSendEvent()
+                // 通过前台服务启动Activity（可以绕过后台启动限制）
+                CallForegroundService.startService(applicationContext, launchActivity = true)
             }
 
             private fun notifyCallRejected(callId: String) {
