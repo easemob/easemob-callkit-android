@@ -170,6 +170,7 @@ class CallForegroundService : Service() {
             ACTION_LAUNCH_ACTIVITY -> {
                 // 这里可以启动通话中的界面
                 CallKitClient.signalingManager.startSendEvent()
+                launchCallActivityFromService()
                 return START_STICKY
             }
         }
@@ -196,6 +197,25 @@ class CallForegroundService : Service() {
 
         // 取消协程作用域
         serviceScope?.cancel()
+    }
+
+    /**
+     * 从前台服务启动通话 Activity，避免被系统后台启动限制拦截（如小米 8 从通知栏接听后无法调起接听页）
+     */
+    private fun launchCallActivityFromService() {
+        try {
+            val callType = CallKitClient.callType.value
+            val activityClass = if (callType == CallType.GROUP_CALL) {
+                MultiCallActivity::class.java
+            } else {
+                SingleCallActivity::class.java
+            }
+            val intent = BaseCallActivity.createLockScreenIntent(this, activityClass)
+            startActivity(intent)
+            ChatLog.d(TAG, "Launched call activity from foreground service: $activityClass.simpleName")
+        } catch (e: Exception) {
+            ChatLog.e(TAG, "Failed to launch call activity from service: ${e.message}")
+        }
     }
 
     /**
@@ -351,7 +371,13 @@ class CallForegroundService : Service() {
 
                     when (callState) {
                         CallState.CALL_IDLE -> {
-                            // 通话结束，停止服务
+                            // 通话结束，先移除前台通知再停止服务，避免通知残留
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                                stopForeground(Service.STOP_FOREGROUND_REMOVE)
+                            } else {
+                                @Suppress("DEPRECATION")
+                                stopForeground(true)
+                            }
                             stopSelf()
                         }
 

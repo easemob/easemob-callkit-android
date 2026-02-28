@@ -300,12 +300,13 @@ class RtcManager {
             callKitListener?.onRemoteUserLeft(userId?:"", callType.value, channelName?:"")
 
         } else {
-            // 1v1通话，对方离开就结束通话
+            // 1v1通话，对方离开就结束通话；先停铃并播 ding，与本地挂断行为一致
             val reasonVar=if (reason== Constants.USER_OFFLINE_DROPPED) {
                 CallEndReason.CallEndReasonRemoteDrop
             } else {
                 CallEndReason.CallEndReasonHangup
             }
+            CallKitClient.audioController.stopPlayRingAndPlayDing()
             signalingManager.updateMessage(connectedTime.value,  reasonVar)
             callKitListener?.onEndCallWithReason(
                 reasonVar,

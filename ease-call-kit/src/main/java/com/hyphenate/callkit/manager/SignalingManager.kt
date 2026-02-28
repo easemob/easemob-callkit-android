@@ -681,7 +681,7 @@ class SignalingManager {
                                     exitChannel()
                                 }
                             } else if (TextUtils.equals(result1, Constant.CALL_ANSWER_ACCEPT)) {
-                                audioController.stopPlayRing()
+                                audioController.stopPlayRingForAnswer()
                                 //设置为接听
                                 callState.value = CallState.CALL_ANSWERED
                                 sendCmdMsg(callEvent, fromUserId)
@@ -714,7 +714,7 @@ class SignalingManager {
                                     sendCmdMsg(callEvent, fromUser)
                                 }
                             } else if (TextUtils.equals(result1, Constant.CALL_ANSWER_ACCEPT)) {
-                                audioController.stopPlayRing()
+                                audioController.stopPlayRingForAnswer()
                                 //设置为接听
                                 callState.value = CallState.CALL_ANSWERED
                                 sendCmdMsg(callEvent, fromUser)
@@ -1128,7 +1128,7 @@ class SignalingManager {
     }
 
     fun answerCall() {
-        audioController.stopPlayRing()
+        audioController.stopPlayRingForAnswer()
         sendAnswerMessage()
     }
 

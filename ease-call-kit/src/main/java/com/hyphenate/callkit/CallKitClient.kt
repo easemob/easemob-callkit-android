@@ -508,6 +508,7 @@ object CallKitClient {
         incomingCallTopWindow.exitCall()
         audioController.exitCall()
         callState.value = CallState.CALL_IDLE
+        CallForegroundService.stopService(mContext)
         callID = null
         callerDevId = null
         fromUserId = ""

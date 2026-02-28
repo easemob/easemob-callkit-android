@@ -12,6 +12,7 @@ import android.media.RingtoneManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.KeyEvent
 import com.hyphenate.callkit.CallKitClient
 import com.hyphenate.callkit.bean.CallState
@@ -150,7 +151,7 @@ class AudioController {
         if (CallKitClient.callState.value != CallState.CALL_IDLE || !wasOtherAudioPlaying) {
             return
         }
-        
+        wasOtherAudioPlaying = false
         Handler(Looper.getMainLooper()).postDelayed({
             try {
                 audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY))
@@ -158,7 +159,6 @@ class AudioController {
             } catch (e: Exception) {
                 ChatLog.e(TAG, "resumeOtherAudioPlayers error: ${e.message}")
             }
-            wasOtherAudioPlaying = false
         }, 500)
     }
 
@@ -229,6 +229,12 @@ class AudioController {
      */
     @Synchronized
     internal fun playRing(ringType: RingType?=null) {
+        // 在 prepareForCall 之前保存原始音频模式，
+        // 因为 requestVoiceCallAudioFocus 可能导致系统自动切换 mode
+        if (savedAudioMode == null) {
+            savedAudioMode = audioManager.mode
+        }
+
         prepareForCall(ringType)
 
         val ringerMode: Int = audioManager.ringerMode
@@ -243,11 +249,11 @@ class AudioController {
             }
             if (ringFile != null) {
                 isPlayDing = if (ringType == RingType.DING) true else false
-                // 确保 MediaPlayer 处于正确状态
+                // 释放旧的 MediaPlayer，避免资源泄漏
                 try {
-                    mediaPlayer?.reset()
+                    mediaPlayer?.release()
                 } catch (e: Exception) {
-                    ChatLog.e(TAG, "Error resetting MediaPlayer: ${e.message}")
+                    ChatLog.e(TAG, "Error releasing old MediaPlayer: ${e.message}")
                 }
                 mediaPlayer = MediaPlayer()
                 try {
@@ -299,9 +305,9 @@ class AudioController {
                            if (ringType!= RingType.DING ){
                                start()
                            } else {
-                               // DING 播放完成，可以释放资源
+                               // DING 播放完成，只释放音频焦点，不走 releaseMediaPlayer 避免 mode 切换导致三方音乐停顿
                                isPlayDing = false
-                               releaseMediaPlayer()
+                               releaseAudioFocus()
                            }
                         }
                         setOnErrorListener { mp, what, extra ->
@@ -339,17 +345,52 @@ class AudioController {
     }
 
     /**
-     * 停止播放铃声
+     * 接听时停止铃声并释放 MediaPlayer
      */
     @Synchronized
-    internal fun stopPlayRing() {
+    internal fun stopPlayRingForAnswer() {
         try {
-            ChatLog.d(TAG, "stopPlayRing")
+            ChatLog.d(TAG, "stopPlayRingForAnswer")
             mediaPlayer?.let { player ->
                 if (player.isPlaying) {
                     player.stop()
                 }
+                player.release()
             }
+            mediaPlayer = null
+            ringtone?.stop()
+        } catch (e: Exception) {
+            ChatLog.e(TAG, "stopPlayRingForAnswer error: ${e.message}")
+        } finally {
+            savedAudioMode = null
+            // 释放铃声阶段的音频焦点，避免与 RTC 引擎的音频焦点冲突
+            // 不调用 releaseAudioFocus() 因为它会触发 resumeOtherAudioPlayers
+            if (hasAudioFocus) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && audioFocusRequest != null) {
+                    audioManager.abandonAudioFocusRequest(audioFocusRequest!!)
+                } else {
+                    @Suppress("DEPRECATION")
+                    audioManager.abandonAudioFocus(audioFocusChangeListener)
+                }
+                hasAudioFocus = false
+            }
+        }
+    }
+
+    /**
+     * 停止播放铃声
+     */
+    @Synchronized
+    internal fun stopPlayRing() {
+        ChatLog.d(TAG, "stopPlayRing()")
+        try {
+            mediaPlayer?.let { player ->
+                if (player.isPlaying) {
+                    player.stop()
+                }
+                player.release()
+            }
+            mediaPlayer = null
             ringtone?.stop()
         } catch (e:Exception){
             ChatLog.e(TAG, "stopPlayRing error: ${e.message}")
