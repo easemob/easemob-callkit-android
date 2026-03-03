@@ -47,32 +47,43 @@ class CallForegroundService : Service() {
         private const val CHANNEL_ID = "call_foreground_service"
         private const val CHANNEL_NAME = "通话服务"
 
-        /**
-         * \~chinese
-         * 启动前台服务
-         *
-         * \~english
-         * Start foreground service
-         */
-        fun startService(context: Context) {
-            try {
-                // 检查是否真的在通话中
-                if (CallKitClient.callState.value == CallState.CALL_IDLE) {
-                    ChatLog.d(TAG, "Not in call, skipping foreground service start")
-                    return
-                }
+        // 标记服务是否已完成 startForeground() 调用
+        @Volatile
+        var isForegroundStarted = false
+            private set
 
-                val intent = Intent(context, CallForegroundService::class.java)
+        // 标记是否有待处理的停止请求
+        @Volatile
+        private var pendingStop = false
+
+        private const val ACTION_LAUNCH_ACTIVITY = "LAUNCH_ACTIVITY"
+        private const val ACTION_END_CALL = "END_CALL"
+
+        /**
+         * 启动前台服务
+         * @param launchActivity 是否同时启动通话Activity（用于telecom接听场景）
+         */
+        @JvmOverloads
+        fun startService(context: Context, launchActivity: Boolean = false) {
+            // 普通场景下检查是否在通话中
+            if (!launchActivity && CallKitClient.callState.value == CallState.CALL_IDLE) {
+                return
+            }
+            pendingStop = false
+            try {
+                val intent = Intent(context, CallForegroundService::class.java).apply {
+                    if (launchActivity) action = ACTION_LAUNCH_ACTIVITY
+                }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(intent)
                 } else {
                     context.startService(intent)
                 }
             } catch (e: Exception) {
-                ChatLog.e(TAG, "Failed to start foreground service: ${e.message}")
+                ChatLog.e(TAG, "Failed to start service: ${e.message}")
             }
         }
-
+        
         /**
          * \~chinese
          * 停止前台服务
@@ -81,8 +92,18 @@ class CallForegroundService : Service() {
          * Stop foreground service
          */
         fun stopService(context: Context) {
-            val intent = Intent(context, CallForegroundService::class.java)
-            context.stopService(intent)
+            if (isForegroundStarted) {
+                // 服务已完成 startForeground()，可以安全停止
+                val intent = Intent(context, CallForegroundService::class.java)
+                context.stopService(intent)
+                isForegroundStarted = false
+                pendingStop = false
+            } else {
+                // 服务还未完成 startForeground()，标记待停止
+                // 服务启动完成后会检查此标记并自行停止
+                ChatLog.d(TAG, "Service not yet started foreground, marking pending stop")
+                pendingStop = true
+            }
         }
     }
 
@@ -110,7 +131,16 @@ class CallForegroundService : Service() {
                 // 对于 Android 11 以下版本，无需指定服务类型，简单地启动前台服务即可
                 this.startForeground(NOTIFICATION_ID, notification)
             }
+            isForegroundStarted = true
             ChatLog.d(TAG, "successful startForeground")
+
+            // 检查是否有待处理的停止请求
+            if (pendingStop) {
+                ChatLog.d(TAG, "Pending stop detected, stopping service now")
+                pendingStop = false
+                stopSelf()
+                return
+            }
         } catch (ex: java.lang.Exception) {
             ChatLog.e(TAG, "Error starting foreground service:" + ex)
         }
@@ -131,11 +161,17 @@ class CallForegroundService : Service() {
 
         // 处理特殊动作
         when (intent?.action) {
-            "END_CALL" -> {
+            ACTION_END_CALL -> {
                 // 结束通话
                 CallKitClient.exitCall()
                 stopSelf()
                 return START_NOT_STICKY
+            }
+            ACTION_LAUNCH_ACTIVITY -> {
+                // 这里可以启动通话中的界面
+                CallKitClient.signalingManager.startSendEvent()
+                launchCallActivityFromService()
+                return START_STICKY
             }
         }
 
@@ -152,11 +188,34 @@ class CallForegroundService : Service() {
     override fun onDestroy() {
         super.onDestroy()
 
+        // 重置前台服务状态标志
+        isForegroundStarted = false
+        pendingStop = false
+
         // 取消观察
         observeJob?.cancel()
 
         // 取消协程作用域
         serviceScope?.cancel()
+    }
+
+    /**
+     * 从前台服务启动通话 Activity，避免被系统后台启动限制拦截（如小米 8 从通知栏接听后无法调起接听页）
+     */
+    private fun launchCallActivityFromService() {
+        try {
+            val callType = CallKitClient.callType.value
+            val activityClass = if (callType == CallType.GROUP_CALL) {
+                MultiCallActivity::class.java
+            } else {
+                SingleCallActivity::class.java
+            }
+            val intent = BaseCallActivity.createLockScreenIntent(this, activityClass)
+            startActivity(intent)
+            ChatLog.d(TAG, "Launched call activity from foreground service: $activityClass.simpleName")
+        } catch (e: Exception) {
+            ChatLog.e(TAG, "Failed to launch call activity from service: ${e.message}")
+        }
     }
 
     /**
@@ -279,7 +338,7 @@ class CallForegroundService : Service() {
         // 如果是通话中状态，添加结束通话按钮
         if (callState == CallState.CALL_ANSWERED) {
             val endCallIntent = Intent(this, CallForegroundService::class.java).apply {
-                action = "END_CALL"
+                action = ACTION_END_CALL
             }
             val endCallPendingIntent = PendingIntent.getService(
                 this,
@@ -312,7 +371,13 @@ class CallForegroundService : Service() {
 
                     when (callState) {
                         CallState.CALL_IDLE -> {
-                            // 通话结束，停止服务
+                            // 通话结束，先移除前台通知再停止服务，避免通知残留
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                                stopForeground(Service.STOP_FOREGROUND_REMOVE)
+                            } else {
+                                @Suppress("DEPRECATION")
+                                stopForeground(true)
+                            }
                             stopSelf()
                         }
 

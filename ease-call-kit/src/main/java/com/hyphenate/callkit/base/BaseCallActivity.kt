@@ -421,7 +421,7 @@ abstract class BaseCallActivity<T : ViewBinding> : AppCompatActivity() {
 
             // 2. 启动前台服务保持摄像头权限
             ChatLog.d(TAG, "Starting foreground service to maintain camera permission")
-            CallForegroundService.Companion.startService(this)
+            CallForegroundService.startService(this)
 
             // 3. 检查权限并显示悬浮窗
             if (PermissionHelper.hasFloatWindowPermission(this)) {
@@ -441,7 +441,7 @@ abstract class BaseCallActivity<T : ViewBinding> : AppCompatActivity() {
         if (CallKitClient.callState.value != CallState.CALL_IDLE) {
             // 1. 启动前台服务保持摄像头权限
             ChatLog.d(TAG, "Starting foreground service due to activity destruction")
-            CallForegroundService.Companion.startService(this)
+            CallForegroundService.startService(this)
 
             // 2. 显示悬浮窗
             if (PermissionHelper.hasFloatWindowPermission(this)) {

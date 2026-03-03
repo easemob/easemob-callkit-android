@@ -19,6 +19,7 @@ import com.hyphenate.callkit.manager.RtcManager
 import com.hyphenate.callkit.base.BaseCallActivity
 import com.hyphenate.callkit.global.CallKitActivityLifecycleCallback
 import com.hyphenate.callkit.interfaces.RTCConfigProvider
+import com.hyphenate.callkit.service.CallForegroundService
 import com.hyphenate.callkit.telecom.TelecomHelper
 import com.hyphenate.callkit.ui.SelectGroupMembersActivity
 import com.hyphenate.callkit.ui.MultiCallActivity
@@ -236,10 +237,7 @@ object CallKitClient {
      * The implementation of starting the call activity
      */
     internal suspend fun startCallActivity() {
-        ChatLog.d(
-            TAG,
-            "suspend startCallActivity: callType=${callType.value}, callState=${callState.value}, isComingCall=$isComingCall"
-        )
+        ChatLog.d(TAG, "suspend startCallActivity: callType=${callType.value}, callState=${callState.value}, isComingCall=$isComingCall")
         val info: String
         val userName = cache.getUserInfoById(fromUserId).getName()
         isComingCall = true
@@ -248,7 +246,7 @@ object CallKitClient {
             val intent = BaseCallActivity.createLockScreenIntent(mContext, SingleCallActivity::class.java)
             mContext.startActivity(intent)
 
-            if (!isAppRunningForeground(mContext)) {
+            if (!isAppRunningForeground(mContext) && !CallForegroundService.isForegroundStarted) {
                 info = when (callType.value) {
                     CallType.SINGLE_VIDEO_CALL ->
                         mContext.getString(R.string.alert_request_video, userName)
@@ -257,7 +255,7 @@ object CallKitClient {
                         mContext.getString(R.string.alert_request_voice, userName)
                 }
                 ChatLog.e(TAG, "notifier.notify: $info")
-                notifier.notify(info)
+                notifier.notify(intent,null,info)
             }
         } else {
             // 启动多人通话界面
@@ -265,9 +263,9 @@ object CallKitClient {
             val intent = BaseCallActivity.createLockScreenIntent(mContext, MultiCallActivity::class.java)
             mContext.startActivity(intent)
 
-            if (!isAppRunningForeground(mContext)) {
+            if (!isAppRunningForeground(mContext) && !CallForegroundService.isForegroundStarted) {
                 info = mContext.getString(R.string.alert_request_multiple_video, userName)
-                notifier.notify(info)
+                notifier.notify(intent,null,info)
             }
         }
     }
@@ -510,6 +508,7 @@ object CallKitClient {
         incomingCallTopWindow.exitCall()
         audioController.exitCall()
         callState.value = CallState.CALL_IDLE
+        CallForegroundService.stopService(mContext)
         callID = null
         callerDevId = null
         fromUserId = ""

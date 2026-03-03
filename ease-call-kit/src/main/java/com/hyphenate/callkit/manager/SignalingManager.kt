@@ -552,6 +552,8 @@ class SignalingManager {
                                 // 锁屏 or 在后台时没有悬浮窗权限走telecom
                                 if (CallKitUtils.isScreenLocked(mContext) || (!appRunningForeground && !hasFloatWindowPermission)) {
                                     ChatLog.d(TAG, "Screen is locked or app is in background, using telecom to show incoming call")
+                                    // 在走telecom之前先记录当前音乐状态并暂停音乐
+                                    audioController.prepareForCall()
                                    //使用telecom显示接听界面
                                     TelecomHelper.startCallImmediately(
                                         mContext,
@@ -679,7 +681,7 @@ class SignalingManager {
                                     exitChannel()
                                 }
                             } else if (TextUtils.equals(result1, Constant.CALL_ANSWER_ACCEPT)) {
-                                audioController.stopPlayRing()
+                                audioController.stopPlayRingForAnswer()
                                 //设置为接听
                                 callState.value = CallState.CALL_ANSWERED
                                 sendCmdMsg(callEvent, fromUserId)
@@ -712,7 +714,7 @@ class SignalingManager {
                                     sendCmdMsg(callEvent, fromUser)
                                 }
                             } else if (TextUtils.equals(result1, Constant.CALL_ANSWER_ACCEPT)) {
-                                audioController.stopPlayRing()
+                                audioController.stopPlayRingForAnswer()
                                 //设置为接听
                                 callState.value = CallState.CALL_ANSWERED
                                 sendCmdMsg(callEvent, fromUser)
@@ -1126,7 +1128,7 @@ class SignalingManager {
     }
 
     fun answerCall() {
-        audioController.stopPlayRing()
+        audioController.stopPlayRingForAnswer()
         sendAnswerMessage()
     }
 
