@@ -506,8 +506,9 @@ object CallKitClient {
         rtcManager.exitCall()
         floatWindow.exitCall()
         incomingCallTopWindow.exitCall()
-        audioController.exitCall()
+        //注意：这个状态重置要放在audioController.exitCall()前，否则会造成第三方音乐恢复不了
         callState.value = CallState.CALL_IDLE
+        audioController.exitCall()
         CallForegroundService.stopService(mContext)
         callID = null
         callerDevId = null
