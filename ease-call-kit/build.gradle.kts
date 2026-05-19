@@ -60,7 +60,7 @@ dependencies {
     // 集成 lite SDK
     api("cn.shengwang.rtc:lite-sdk:4.6.0")
 
-    api("io.hyphenate:hyphenate-chat:4.21.0")
+    api("io.hyphenate:hyphenate-chat:4.22.0")
 //    implementation(project(mapOf("path" to ":hyphenatechatsdk")))
 
 }
