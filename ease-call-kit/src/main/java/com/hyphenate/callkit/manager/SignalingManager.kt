@@ -795,7 +795,8 @@ class SignalingManager {
         message.addBody(cmdBody)
         if (event.callAction == CallAction.CALL_CONFIRM_RING
             || event.callAction == CallAction.CALL_CANCEL
-            || event.callAction == CallAction.CALL_CONFIRM_CALLEE) {
+            || event.callAction == CallAction.CALL_CONFIRM_CALLEE
+            || event.callAction == CallAction.CALL_END) {
             cmdBody.deliverOnlineOnly(false)
         } else {
             cmdBody.deliverOnlineOnly(true)
