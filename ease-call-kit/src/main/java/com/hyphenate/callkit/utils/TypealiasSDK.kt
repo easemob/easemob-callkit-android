@@ -31,11 +31,8 @@ typealias ChatLog = com.hyphenate.util.EMLog
 
 // Group
 typealias ChatGroup = com.hyphenate.chat.EMGroup
-typealias ChatGroupStyle = com.hyphenate.chat.EMGroupManager.EMGroupStyle
 typealias ChatGroupInfo = com.hyphenate.chat.EMGroupInfo
-typealias ChatGroupOptions = com.hyphenate.chat.EMGroupOptions
 typealias ChatShareFile = com.hyphenate.chat.EMMucSharedFile
-typealias ChatGroupReadAck = com.hyphenate.chat.EMGroupReadAck
 
 //Contact
 typealias ChatContact = com.hyphenate.chat.EMContact
