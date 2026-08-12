@@ -38,6 +38,21 @@ interface RTCConfigProvider {
      * @param callback callback
      */
     fun onAsyncFetchRtcToken(channelName:String?,callback: OnValueSuccess<EMRTCTokenInfo?>) = callback(null)
+
+    /**
+     * \~chinese
+     * 异步通过 Agora uid 批量获取环信用户 id
+     * 默认返回 null；返回 null 或映射中缺少对应 uid 时，将回退到 SDK 查询
+     * @param uids Agora uid 列表
+     * @param callback 回调，值为 uid -> 环信用户 id 的映射
+     *
+     * \~english
+     * Async batch fetch Easemob user ids by Agora uids
+     * Default returns null; falls back to SDK query when null or uid missing in the map
+     * @param uids list of Agora uids
+     * @param callback callback with a uid -> Easemob user id map
+     */
+    fun onAsyncFetchUserIdByUid(uids: List<Int>, callback: OnValueSuccess<Map<Int, String>?>) = callback(null)
 }
 
 /**
@@ -55,6 +70,25 @@ suspend fun RTCConfigProvider.getRtcToken(channelName: String?): EMRTCTokenInfo?
     return suspendCoroutine { continuation ->
         onAsyncFetchRtcToken(channelName,callback = { info ->
             continuation.resume(info)
+        })
+    }
+}
+
+/**
+ * \~chinese
+ * 挂起函数 通过 Agora uid 批量获取环信用户 id
+ * @param uids Agora uid 列表
+ * @return uid -> 环信用户 id 的映射
+ *
+ * \~english
+ * Suspend function to batch fetch Easemob user ids by Agora uids
+ * @param uids list of Agora uids
+ * @return uid -> Easemob user id map
+ */
+suspend fun RTCConfigProvider.getUserIdsByUids(uids: List<Int>): Map<Int, String>? {
+    return suspendCoroutine { continuation ->
+        onAsyncFetchUserIdByUid(uids, callback = { map ->
+            continuation.resume(map)
         })
     }
 }
