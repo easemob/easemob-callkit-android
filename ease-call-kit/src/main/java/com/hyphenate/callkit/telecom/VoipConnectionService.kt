@@ -157,7 +157,7 @@ class VoipConnectionService : ConnectionService() {
                 ChatLog.d(TAG, "Starting call activity for callId: $callId")
                 // 发送接听消息给对方
                 CallKitClient.signalingManager.answerCall()
-                // 通过前台服务启动Activity（可以绕过后台启动限制）
+                // 通过前台服务启动Activity
                 CallForegroundService.startService(applicationContext, launchActivity = true)
             }
 

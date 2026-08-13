@@ -156,7 +156,7 @@ object CallKitClient {
     var callInfoProvider: CallInfoProvider? = null
 
     private val TAG = "Callkit CallKitClient"
-    private lateinit var notifier: CallKitNotifier
+    internal lateinit var notifier: CallKitNotifier
     private var isInitialized = false
     internal var isComingCall = true
     internal var channelName: String? = null
