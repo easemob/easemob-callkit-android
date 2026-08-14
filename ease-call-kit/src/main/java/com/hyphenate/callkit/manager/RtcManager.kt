@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 
 
@@ -506,7 +507,15 @@ class RtcManager {
      */
     @Synchronized
     internal fun initializeEngine(): Boolean{
-
+        // 若上一次通话的引擎仍在销毁中，先等待其销毁完成，
+        // 避免新引擎在旧引擎释放摄像头前 startPreview，导致本地视频采集失败（偶现远端无画面）
+        destroyJob?.let {
+            if (it.isActive) {
+                ChatLog.d(TAG, "Waiting for previous RTC engine destroy to complete")
+                runBlocking { it.join() }
+            }
+            destroyJob = null
+        }
         if (rtcEngine!=null){
             return true
         }
@@ -864,6 +873,10 @@ class RtcManager {
     }
 
 
+    // 上一次引擎的销毁任务，新引擎创建前必须等待其完成，
+    // 否则旧引擎尚未释放摄像头等资源，新引擎 startPreview 会采集失败（远端看不到画面）
+    private var destroyJob: Job? = null
+
     /**
      * \~chinese
      * 销毁RTC引擎
@@ -873,14 +886,13 @@ class RtcManager {
      */
     @Synchronized
     fun destroyEngine() {
-        CallKitClient.callKitScope.launch {
+        val engine = rtcEngine ?: return
+        rtcEngine = null
+        destroyJob = CallKitClient.callKitScope.launch {
             try {
-                rtcEngine?.let {
-                    ChatLog.d(TAG, "RTC engine destroyed")
-                    rtcEngine = null
-                    it.leaveChannel()
-                    RtcEngine.destroy()
-                }
+                engine.leaveChannel()
+                RtcEngine.destroy()
+                ChatLog.d(TAG, "RTC engine destroyed")
             } catch (e: Exception) {
                 ChatLog.e(TAG, "Error destroying RTC engine "+e.message)
             }
