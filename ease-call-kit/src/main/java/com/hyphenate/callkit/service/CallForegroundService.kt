@@ -21,7 +21,9 @@ import com.hyphenate.callkit.bean.CallState
 import com.hyphenate.callkit.bean.CallType
 import com.hyphenate.callkit.ui.MultiCallActivity
 import com.hyphenate.callkit.ui.SingleCallActivity
+import com.hyphenate.callkit.utils.CallKitUtils
 import com.hyphenate.callkit.utils.ChatLog
+import com.hyphenate.callkit.utils.PermissionHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -201,6 +203,11 @@ class CallForegroundService : Service() {
 
     /**
      * 从前台服务启动通话 Activity，避免被系统后台启动限制拦截（如小米 8 从通知栏接听后无法调起接听页）
+     *
+     * Android 10+ 严格限制后台启动 Activity（BAL），前台服务并不能豁免：
+     * - 应用在前台，或已授予悬浮窗权限（SYSTEM_ALERT_WINDOW 可豁免 BAL）时，直接 startActivity；
+     * - 否则发送带 fullScreenIntent 的通话通知，由系统全屏拉起通话界面（锁屏/灭屏时自动弹出，
+     *   亮屏使用时显示为顶部悬浮通知，点击进入通话界面）。
      */
     private fun launchCallActivityFromService() {
         try {
@@ -211,8 +218,23 @@ class CallForegroundService : Service() {
                 SingleCallActivity::class.java
             }
             val intent = BaseCallActivity.createLockScreenIntent(this, activityClass)
-            startActivity(intent)
-            ChatLog.d(TAG, "Launched call activity from foreground service: $activityClass.simpleName")
+            if (CallKitUtils.isAppRunningForeground(this) ||
+                PermissionHelper.hasFloatWindowPermission(this)
+            ) {
+                startActivity(intent)
+                ChatLog.d(TAG, "Launched call activity from foreground service: ${activityClass.simpleName}")
+            } else {
+                val content = when (callType) {
+                    CallType.SINGLE_VIDEO_CALL -> "视频通话 • 点击进入通话界面"
+                    CallType.SINGLE_VOICE_CALL -> "语音通话 • 点击进入通话界面"
+                    CallType.GROUP_CALL -> "多人通话 • 点击进入通话界面"
+                }
+                CallKitClient.notifier.notify(intent, null, content)
+                ChatLog.d(
+                    TAG,
+                    "Posted full-screen intent notification to launch: ${activityClass.simpleName}"
+                )
+            }
         } catch (e: Exception) {
             ChatLog.e(TAG, "Failed to launch call activity from service: ${e.message}")
         }

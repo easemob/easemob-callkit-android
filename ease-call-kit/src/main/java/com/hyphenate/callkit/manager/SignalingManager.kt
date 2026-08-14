@@ -993,6 +993,7 @@ class SignalingManager {
                 message.chatType= ChatType.GroupChat
             }else{
                 message = ChatMessage.createTextSendMessage(content, userlist[0])
+                message.setIsNeedReadReceipt(true)
             }
             message.setAttribute(Constant.CALL_ACTION, CallAction.CALL_INVITE.state)
             message.setAttribute(Constant.CALL_CHANNELNAME, channelName)
