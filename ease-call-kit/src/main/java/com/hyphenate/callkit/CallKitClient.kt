@@ -19,6 +19,7 @@ import com.hyphenate.callkit.manager.RtcManager
 import com.hyphenate.callkit.base.BaseCallActivity
 import com.hyphenate.callkit.global.CallKitActivityLifecycleCallback
 import com.hyphenate.callkit.interfaces.RTCConfigProvider
+import com.hyphenate.callkit.interfaces.getUserIdsByUids
 import com.hyphenate.callkit.service.CallForegroundService
 import com.hyphenate.callkit.telecom.TelecomHelper
 import com.hyphenate.callkit.ui.SelectGroupMembersActivity
@@ -472,6 +473,8 @@ object CallKitClient {
     }
 
     internal suspend fun getUserIdByUid(uid: Int): String? {
+        // 优先从用户配置的 RTCConfigProvider 获取，取不到再走 SDK 现有方式
+        rtcConfigProvider?.getUserIdsByUids(listOf(uid))?.get(uid)?.let { return it }
         return suspendCoroutine { continuation ->
             ChatClient.getInstance().asyncGetUserIdsWithRTCUids(listOf(uid), object :
                 EMValueCallBack<Map<Int, String>> {
