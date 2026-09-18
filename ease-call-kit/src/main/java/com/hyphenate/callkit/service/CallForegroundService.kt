@@ -224,16 +224,25 @@ class CallForegroundService : Service() {
                 startActivity(intent)
                 ChatLog.d(TAG, "Launched call activity from foreground service: ${activityClass.simpleName}")
             } else {
-                val content = when (callType) {
-                    CallType.SINGLE_VIDEO_CALL -> "视频通话 • 点击进入通话界面"
-                    CallType.SINGLE_VOICE_CALL -> "语音通话 • 点击进入通话界面"
-                    CallType.GROUP_CALL -> "多人通话 • 点击进入通话界面"
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                    ContextCompat.checkSelfPermission(
+                        this,
+                        android.Manifest.permission.POST_NOTIFICATIONS
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
+                    val content = when (callType) {
+                        CallType.SINGLE_VIDEO_CALL -> "视频通话 • 点击进入通话界面"
+                        CallType.SINGLE_VOICE_CALL -> "语音通话 • 点击进入通话界面"
+                        CallType.GROUP_CALL -> "多人通话 • 点击进入通话界面"
+                    }
+                    CallKitClient.notifier.notify(intent, null, content)
+                    ChatLog.d(
+                        TAG,
+                        "Posted full-screen intent notification to launch: ${activityClass.simpleName}"
+                    )
+                } else {
+                    ChatLog.w(TAG, "POST_NOTIFICATIONS permission not granted, skip full-screen notification")
                 }
-                CallKitClient.notifier.notify(intent, null, content)
-                ChatLog.d(
-                    TAG,
-                    "Posted full-screen intent notification to launch: ${activityClass.simpleName}"
-                )
             }
         } catch (e: Exception) {
             ChatLog.e(TAG, "Failed to launch call activity from service: ${e.message}")
