@@ -612,6 +612,13 @@ class SignalingManager {
                             callKitListener?.onEndCallWithReason(CallEndReason.CallEndReasonRefuse, callInfo)
                             //退出通话
                             exitChannel()
+                        } else if (TextUtils.equals(result, Constant.CALL_ANSWER_BUSY)) {
+                            //其他设备忙碌，对方已结束通话
+                            updateMessage(0,CallEndReason.CallEndReasonHandleOnOtherDevice)
+                            callKitListener?.onEndCallWithReason(
+                                CallEndReason.CallEndReasonHandleOnOtherDevice,
+                                callInfo
+                            )
                         }
                     } else {
                         //提示已在其他设备处理
